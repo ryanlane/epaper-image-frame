@@ -114,11 +114,19 @@ def update_image(id: int,
                  title: str = Form(""),
                  description: str = Form(""),
                  sort_order: int = Form(None),
+                 crop_x: int = Form(None),
+                 crop_y: int = Form(None),
+                 crop_width: int = Form(None),
+                 crop_height: int = Form(None),
                  db: Session = Depends(get_db)):
     img = db.query(Image).get(id)
     if not img: return JSONResponse({"error":"not found"}, status_code=404)
     img.title = title; img.description = description
     if sort_order is not None: img.sort_order = sort_order
+    if crop_x is not None: img.crop_x = crop_x
+    if crop_y is not None: img.crop_y = crop_y
+    if crop_width is not None: img.crop_width = crop_width
+    if crop_height is not None: img.crop_height = crop_height
     db.commit(); return {"ok": True}
 
 @app.post("/image/{id}/delete")
@@ -171,7 +179,9 @@ def show_now(id: int, db: Session = Depends(get_db)):
     img = db.query(Image).get(id)
     if not img: return JSONResponse({"error":"not found"}, status_code=404)
     src = os.path.join(s.image_root, img.filename)
-    render_to_output(src, "static/current.jpg", s.resolution)
+    render_to_output(src, "static/current.jpg", s.resolution, 
+                    img.crop_x or 0, img.crop_y or 0, 
+                    img.crop_width or 100, img.crop_height or 100)
     eframe_inky.show_on_inky("static/current.jpg")
     img.times_shown += 1
     db.commit()
@@ -223,7 +233,9 @@ def slideshow_loop():
                     img = pick_next(db, s)
                     if img:
                         render_to_output(os.path.join(s.image_root, img.filename),
-                                         "static/current.jpg", s.resolution)
+                                         "static/current.jpg", s.resolution,
+                                         img.crop_x or 0, img.crop_y or 0, 
+                                         img.crop_width or 100, img.crop_height or 100)
                         eframe_inky.show_on_inky("static/current.jpg")
                         img.times_shown += 1
                         img.last_shown_at = datetime.now(timezone.utc)

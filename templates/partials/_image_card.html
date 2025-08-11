@@ -5,6 +5,26 @@
     <div class="title-edit" id="title-edit-{{ image.id }}" style="display: none;">
       <input type="text" id="title-input-{{ image.id }}" value="{{ image.title or image.original_name }}" placeholder="Image title">
       <textarea id="desc-input-{{ image.id }}" placeholder="Description">{{ image.description }}</textarea>
+      
+      <!-- Crop controls -->
+      <div class="crop-controls">
+        <h4>Crop Settings</h4>
+        <div class="crop-preview">
+          <img src="/static/uploads/{{ image.filename }}" id="crop-preview-{{ image.id }}" style="max-width: 200px; max-height: 150px;">
+          <div class="crop-overlay" id="crop-overlay-{{ image.id }}"></div>
+        </div>
+        <div class="crop-inputs">
+          <label>X: <input type="range" id="crop-x-{{ image.id }}" min="0" max="100" value="{{ image.crop_x or 0 }}">
+            <span id="crop-x-val-{{ image.id }}">{{ image.crop_x or 0 }}%</span></label>
+          <label>Y: <input type="range" id="crop-y-{{ image.id }}" min="0" max="100" value="{{ image.crop_y or 0 }}">
+            <span id="crop-y-val-{{ image.id }}">{{ image.crop_y or 0 }}%</span></label>
+          <label>Width: <input type="range" id="crop-width-{{ image.id }}" min="10" max="100" value="{{ image.crop_width or 100 }}">
+            <span id="crop-width-val-{{ image.id }}">{{ image.crop_width or 100 }}%</span></label>
+          <label>Height: <input type="range" id="crop-height-{{ image.id }}" min="10" max="100" value="{{ image.crop_height or 100 }}">
+            <span id="crop-height-val-{{ image.id }}">{{ image.crop_height or 100 }}%</span></label>
+        </div>
+      </div>
+      
       <div class="edit-buttons">
         <button class="save-edit" data-id="{{ image.id }}">Save</button>
         <button class="cancel-edit" data-id="{{ image.id }}">Cancel</button>

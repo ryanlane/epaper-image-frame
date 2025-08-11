@@ -29,3 +29,8 @@ class Image(Base):
     times_shown = Column(Integer, default=0)
     last_shown_at = Column(DateTime)
     created_at = Column(DateTime, server_default=func.now())
+    # Crop settings as percentages (0-100) of original image
+    crop_x = Column(Integer, default=0)  # left offset %
+    crop_y = Column(Integer, default=0)  # top offset %
+    crop_width = Column(Integer, default=100)  # width %
+    crop_height = Column(Integer, default=100)  # height %

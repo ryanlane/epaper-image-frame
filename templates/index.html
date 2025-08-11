@@ -33,6 +33,9 @@
     if (descDisplay) descDisplay.style.display = 'none';
     document.getElementById(`title-edit-${id}`).style.display = 'block';
     
+    // Initialize crop preview
+    updateCropPreview(id);
+    
     return;
   }
 
@@ -43,11 +46,19 @@
     const id = saveBtn.dataset.id;
     const title = document.getElementById(`title-input-${id}`).value;
     const description = document.getElementById(`desc-input-${id}`).value;
+    const cropX = document.getElementById(`crop-x-${id}`).value;
+    const cropY = document.getElementById(`crop-y-${id}`).value;
+    const cropWidth = document.getElementById(`crop-width-${id}`).value;
+    const cropHeight = document.getElementById(`crop-height-${id}`).value;
     
     try {
       const formData = new FormData();
       formData.append('title', title);
       formData.append('description', description);
+      formData.append('crop_x', cropX);
+      formData.append('crop_y', cropY);
+      formData.append('crop_width', cropWidth);
+      formData.append('crop_height', cropHeight);
       
       const res = await fetch(`/image/${id}/update`, { 
         method: 'POST',
@@ -138,6 +149,45 @@
       alert('Failed to toggle image.');
       console.error(err);
     }
+  }
+});
+
+// Crop preview functions
+function updateCropPreview(id) {
+  const img = document.getElementById(`crop-preview-${id}`);
+  const overlay = document.getElementById(`crop-overlay-${id}`);
+  const cropX = parseInt(document.getElementById(`crop-x-${id}`).value);
+  const cropY = parseInt(document.getElementById(`crop-y-${id}`).value);
+  const cropWidth = parseInt(document.getElementById(`crop-width-${id}`).value);
+  const cropHeight = parseInt(document.getElementById(`crop-height-${id}`).value);
+  
+  if (img && overlay) {
+    const imgRect = img.getBoundingClientRect();
+    const containerRect = img.parentElement.getBoundingClientRect();
+    
+    const left = (cropX / 100) * img.offsetWidth;
+    const top = (cropY / 100) * img.offsetHeight;
+    const width = (cropWidth / 100) * img.offsetWidth;
+    const height = (cropHeight / 100) * img.offsetHeight;
+    
+    overlay.style.left = left + 'px';
+    overlay.style.top = top + 'px';
+    overlay.style.width = width + 'px';
+    overlay.style.height = height + 'px';
+  }
+  
+  // Update value displays
+  document.getElementById(`crop-x-val-${id}`).textContent = cropX + '%';
+  document.getElementById(`crop-y-val-${id}`).textContent = cropY + '%';
+  document.getElementById(`crop-width-val-${id}`).textContent = cropWidth + '%';
+  document.getElementById(`crop-height-val-${id}`).textContent = cropHeight + '%';
+}
+
+// Event listeners for crop sliders
+document.addEventListener('input', (e) => {
+  if (e.target.type === 'range' && e.target.id.includes('crop-')) {
+    const id = e.target.id.split('-').slice(-1)[0];
+    updateCropPreview(id);
   }
 });
 </script>
