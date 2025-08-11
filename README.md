@@ -1,6 +1,30 @@
 # E-Paper Image Frame
 
+<!-- Add a hero image here when ready -->
+<!-- ![E-Paper Frame Setup](docs/images/hero-image.jpg) -->
+
 A web-based digital photo frame application designed for e-ink displays, featuring intelligent image cropping, slideshow functionality, and an intuitive web interface for managing your photo collection.
+
+<!-- Add feature showcase images -->
+## 📸 Screenshots
+
+
+### Web Interface
+![Web Interface](docs/images/epaper-image-frame.png)
+*Main interface showing image gallery with edit controls*
+
+### Mobile View
+![Inky Display](docs/images/inky-display.jpg)
+*Image displayed on Inky*
+
+### Crop Editor
+![Crop Editor](docs/images/cropimage.png)  
+*Drag-and-drop crop tool with aspect ratio locking*
+
+### Mobile View
+![Mobile View](docs/images/mobile-view.png)
+*Responsive design works on all devices*
+
 
 ## 🖼️ Features
 
@@ -60,7 +84,7 @@ A web-based digital photo frame application designed for e-ink displays, featuri
 
 ```
 epaper-image-frame/
-├── app.py                 # Main FastAPI application
+├── app.py                # Main FastAPI application
 ├── database.py           # Database configuration and setup
 ├── models.py             # SQLAlchemy database models
 ├── migrate_db.py         # Database migration script
