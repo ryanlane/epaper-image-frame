@@ -187,3 +187,4 @@ uploads/
 photo_frame.db
 photo_frame.db
 /static/thumbs
+*.db
