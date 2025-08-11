@@ -1,13 +1,111 @@
 {% extends "base.html" %}
-{% block title %}Home • E‑Ink Frame{% endblock %}
+{% block title %}Upload Images • E‑Ink Frame{% endblock %}
 
 {% block content %}
-<h1>Upload Image</h1>
+<h1>Upload Images</h1>
 <form action="/upload" method="post" enctype="multipart/form-data">
-  <div><input type="file" name="file" accept="image/*" required></div>
-  <div><input type="text" name="title" placeholder="Title"></div>
-  <div><textarea name="description" placeholder="Description"></textarea></div>
-  <button>Upload</button>
+  <div>
+    <label>
+      <span>Select Images</span>
+      <input type="file" name="files" accept="image/*" multiple required>
+      <small>Hold Ctrl (or Cmd on Mac) to select multiple images</small>
+    </label>
+  </div>
+  <button type="submit" id="uploadBtn">Upload Images</button>
+  <div id="uploadProgress" style="display: none;">
+    <div>Uploading images...</div>
+    <div id="progressBar" style="width: 100%; background: #333; border-radius: 4px; margin-top: 0.5rem;">
+      <div style="width: 0%; height: 20px; background: #0066cc; border-radius: 4px; transition: width 0.3s;"></div>
+    </div>
+  </div>
 </form>
-<p><a href="/">Back</a></p>
+
+<script>
+document.querySelector('form').addEventListener('submit', function(e) {
+  const fileInput = document.querySelector('input[type="file"]');
+  const files = fileInput.files;
+  
+  if (files.length === 0) {
+    alert('Please select at least one image to upload.');
+    e.preventDefault();
+    return;
+  }
+  
+  if (files.length > 20) {
+    if (!confirm(`You've selected ${files.length} images. This might take a while. Continue?`)) {
+      e.preventDefault();
+      return;
+    }
+  }
+  
+  // Show progress indicator but don't prevent submission
+  document.getElementById('uploadProgress').style.display = 'block';
+  const submitBtn = document.getElementById('uploadBtn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Uploading...';
+  
+  // Let the form submit normally
+});
+
+// Show file count when files are selected
+document.querySelector('input[type="file"]').addEventListener('change', function(e) {
+  const count = e.target.files.length;
+  const existing = document.getElementById('fileCount');
+  if (existing) existing.remove();
+  
+  if (count > 0) {
+    const div = document.createElement('div');
+    div.id = 'fileCount';
+    div.style.cssText = 'color: #0066cc; font-weight: bold; margin-top: 0.5rem;';
+    div.textContent = `${count} image${count === 1 ? '' : 's'} selected`;
+    e.target.parentNode.appendChild(div);
+  }
+});
+</script>
+
+<style>
+  label {
+    display: block;
+    margin-bottom: 1rem;
+  }
+  label span {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+  }
+  input[type="file"] {
+    width: 100%;
+    padding: 0.5rem;
+    border: 2px dashed #666;
+    border-radius: 4px;
+    background: #222;
+    color: #eee;
+  }
+  input[type="text"], textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #666;
+    border-radius: 4px;
+    background: #222;
+    color: #eee;
+  }
+  small {
+    display: block;
+    color: #999;
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+  }
+  button {
+    background: #0066cc;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+  }
+  button:hover {
+    background: #0052a3;
+  }
+</style>
 {% endblock %}

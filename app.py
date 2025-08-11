@@ -1,6 +1,7 @@
 import os, random, threading, time
 from datetime import datetime, timezone
-from fastapi import FastAPI, Request, UploadFile, File, Form, Depends
+from typing import List
+from fastapi import FastAPI, Request, UploadFile, File, Form, Depends, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -45,19 +46,60 @@ def upload_form(request: Request):
     return templates.TemplateResponse("upload.html", {"request": request})
 
 @app.post("/upload")
-def upload(file: UploadFile = File(...),
-           title: str = Form(""),
-           description: str = Form(""),
-           db: Session = Depends(get_db)):
+async def upload(request: Request, db: Session = Depends(get_db)):
+    print("Upload endpoint called")
+    
+    form = await request.form()
+    print(f"Form keys: {list(form.keys())}")
+    
+    # Get title and description
+    title = form.get("title", "")
+    description = form.get("description", "")
+    print(f"Title: '{title}', Description: '{description}'")
+    
+    # Get files - FastAPI/Starlette handles multiple files from single input differently
+    files = form.getlist("files")
+    print(f"Received {len(files)} files")
+    
     s = db.query(Settings).first()
-    fname, w, h, exif_json = save_upload(file, s.image_root, s.thumb_root)
-    # sort_order = max + 1
-    max_order = db.query(Image).count()
-    img = Image(filename=fname, original_name=file.filename, title=title,
-                description=description, exif_json=exif_json,
-                width=w, height=h, sort_order=max_order+1)
-    db.add(img); db.commit()
+    uploaded_count = 0
+    
+    for i, file in enumerate(files):
+        if hasattr(file, 'filename') and file.filename:  # Make sure it's actually a file
+            print(f"Processing file {i+1}: {file.filename}")
+            try:
+                # Use filename as title if no default title provided
+                file_title = title if title.strip() else os.path.splitext(file.filename)[0]
+                
+                fname, w, h, exif_json = save_upload(file, s.image_root, s.thumb_root)
+                # sort_order = max + 1
+                max_order = db.query(Image).count()
+                img = Image(filename=fname, original_name=file.filename, title=file_title,
+                            description=description, exif_json=exif_json,
+                            width=w, height=h, sort_order=max_order+1)
+                db.add(img)
+                uploaded_count += 1
+                print(f"Successfully processed: {file.filename}")
+            except Exception as e:
+                print(f"Failed to upload {file.filename}: {e}")
+                import traceback
+                traceback.print_exc()
+                # Continue with other files even if one fails
+                continue
+        else:
+            print(f"Skipping non-file item: {file}")
+    
+    db.commit()
+    print(f"Successfully uploaded {uploaded_count} of {len(files)} images")
     return RedirectResponse("/", status_code=303)
+
+# Add a simple test endpoint to see if we can receive any POST data
+@app.post("/upload-test")
+async def upload_test(request: Request):
+    print("Upload test endpoint called")
+    form = await request.form()
+    print(f"Form data: {dict(form)}")
+    return {"received": "ok"}
 
 @app.post("/image/{id}/toggle")
 def toggle_enable(id: int, db: Session = Depends(get_db)):

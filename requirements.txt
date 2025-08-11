@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+sqlalchemy
+pillow
+python-multipart
+python-dotenv
+jinja2
