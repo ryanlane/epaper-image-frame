@@ -186,7 +186,7 @@ if __name__ == "__main__":
     except Exception:
         local_ip = "127.0.0.1"
 
-    print(f"INFO:     Local machine IP address: http://{local_ip}:8000")
+    print(f"INFO:     Local machine IP address: http://{local_ip}:8080")
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8080)
 
