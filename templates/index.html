@@ -17,9 +17,22 @@
   {% for i in images %}
   <div class="card {{ '' if i.enabled else 'is-disabled' }}" id="img-{{ i.id }}">
     <img src="/static/thumbs/{{ i.filename }}" alt="" style="width:100%;border-radius:8px">
+    <div class="image-info">
+      <div class="title-display" id="title-display-{{ i.id }}">{{ i.title or i.original_name }}</div>
+      <div class="title-edit" id="title-edit-{{ i.id }}" style="display: none;">
+        <input type="text" id="title-input-{{ i.id }}" value="{{ i.title or i.original_name }}" placeholder="Image title">
+        <textarea id="desc-input-{{ i.id }}" placeholder="Description">{{ i.description }}</textarea>
+        <div class="edit-buttons">
+          <button class="save-edit" data-id="{{ i.id }}">Save</button>
+          <button class="cancel-edit" data-id="{{ i.id }}">Cancel</button>
+        </div>
+      </div>
+      {% if i.description %}
+        <div class="description" id="desc-display-{{ i.id }}">{{ i.description }}</div>
+      {% endif %}
+    </div>
     <div class="row" style="justify-content:space-between;margin-top:.5rem">
-      <div class="label">{{ i.title or i.original_name }}</div>
-      <span class="badge">{{ 'On' if i.enabled else 'Off' }}</span>
+      <small>Shown {{ i.times_shown }} times</small>
     </div>
     <div class="row" style="margin-top:.5rem">
       <button
@@ -28,6 +41,7 @@
         aria-pressed="{{ 'true' if i.enabled else 'false' }}">
         {{ 'Disable' if i.enabled else 'Enable' }}
       </button>
+      <button class="edit-image" data-id="{{ i.id }}">Edit</button>
       <button class="show-now" data-id="{{ i.id }}">Show now</button>
       <form method="post" action="/image/{{i.id}}/delete" onsubmit="return confirm('Delete image?')"><button>Delete</button></form>
     </div>
@@ -37,6 +51,84 @@
 
 <script>
   document.addEventListener('click', async (e) => {
+  // EDIT IMAGE
+  const editBtn = e.target.closest('.edit-image');
+  if (editBtn) {
+    e.preventDefault();
+    const id = editBtn.dataset.id;
+    
+    // Hide display elements and show edit elements
+    document.getElementById(`title-display-${id}`).style.display = 'none';
+    const descDisplay = document.getElementById(`desc-display-${id}`);
+    if (descDisplay) descDisplay.style.display = 'none';
+    document.getElementById(`title-edit-${id}`).style.display = 'block';
+    
+    return;
+  }
+
+  // SAVE EDIT
+  const saveBtn = e.target.closest('.save-edit');
+  if (saveBtn) {
+    e.preventDefault();
+    const id = saveBtn.dataset.id;
+    const title = document.getElementById(`title-input-${id}`).value;
+    const description = document.getElementById(`desc-input-${id}`).value;
+    
+    try {
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('description', description);
+      
+      const res = await fetch(`/image/${id}/update`, { 
+        method: 'POST',
+        body: formData
+      });
+      if (!res.ok) throw new Error('Bad response');
+      
+      // Update display elements
+      document.getElementById(`title-display-${id}`).textContent = title;
+      
+      // Update or create description display
+      let descDisplay = document.getElementById(`desc-display-${id}`);
+      if (description.trim()) {
+        if (!descDisplay) {
+          descDisplay = document.createElement('div');
+          descDisplay.className = 'description';
+          descDisplay.id = `desc-display-${id}`;
+          document.getElementById(`title-display-${id}`).parentNode.appendChild(descDisplay);
+        }
+        descDisplay.textContent = description;
+        descDisplay.style.display = 'block';
+      } else if (descDisplay) {
+        descDisplay.style.display = 'none';
+      }
+      
+      // Hide edit elements and show display elements
+      document.getElementById(`title-edit-${id}`).style.display = 'none';
+      document.getElementById(`title-display-${id}`).style.display = 'block';
+      
+    } catch (err) {
+      alert('Failed to update image.');
+      console.error(err);
+    }
+    return;
+  }
+
+  // CANCEL EDIT
+  const cancelBtn = e.target.closest('.cancel-edit');
+  if (cancelBtn) {
+    e.preventDefault();
+    const id = cancelBtn.dataset.id;
+    
+    // Hide edit elements and show display elements
+    document.getElementById(`title-edit-${id}`).style.display = 'none';
+    document.getElementById(`title-display-${id}`).style.display = 'block';
+    const descDisplay = document.getElementById(`desc-display-${id}`);
+    if (descDisplay) descDisplay.style.display = 'block';
+    
+    return;
+  }
+
   // SHOW NOW
   const showBtn = e.target.closest('.show-now');
   if (showBtn) {

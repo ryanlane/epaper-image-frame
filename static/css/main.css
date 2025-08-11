@@ -69,6 +69,65 @@ main {
 
 .card.is-disabled { opacity: .5; filter: grayscale(100%); }
 
+.image-info {
+    margin-top: 0.5rem;
+}
+
+.title-display {
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}
+
+.description {
+    font-size: 0.9rem;
+    color: #ccc;
+    margin-bottom: 0.25rem;
+}
+
+.title-edit input,
+.title-edit textarea {
+    width: 100%;
+    padding: 0.25rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid #666;
+    border-radius: 4px;
+    background: #222;
+    color: #eee;
+    font-size: 0.9rem;
+}
+
+.title-edit textarea {
+    min-height: 50px;
+    resize: vertical;
+}
+
+.edit-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.edit-buttons button {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.save-edit {
+    background: #0066cc;
+    color: white;
+}
+
+.cancel-edit {
+    background: #666;
+    color: white;
+}
+
+.edit-buttons button:hover {
+    opacity: 0.8;
+}
+
 .label {
     white-space:nowrap;
     overflow:hidden;
