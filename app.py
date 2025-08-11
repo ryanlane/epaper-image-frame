@@ -39,7 +39,12 @@ def startup():
 def index(request: Request, db: Session = Depends(get_db)):
     imgs = db.query(Image).order_by(Image.sort_order.asc(), Image.created_at.asc()).all()
     settings = db.query(Settings).first()
-    return templates.TemplateResponse("index.html", {"request": request, "images": imgs, "settings": settings})
+    return templates.TemplateResponse("index.html", {
+        "request": request, 
+        "images": imgs, 
+        "settings": settings,
+        "dev_mode": True  # Pass dev mode info
+    })
 
 @app.get("/upload", name="upload")
 def upload_form(request: Request):
@@ -114,10 +119,10 @@ def update_image(id: int,
                  title: str = Form(""),
                  description: str = Form(""),
                  sort_order: int = Form(None),
-                 crop_x: int = Form(None),
-                 crop_y: int = Form(None),
-                 crop_width: int = Form(None),
-                 crop_height: int = Form(None),
+                 crop_x: float = Form(None),
+                 crop_y: float = Form(None),
+                 crop_width: float = Form(None),
+                 crop_height: float = Form(None),
                  db: Session = Depends(get_db)):
     img = db.query(Image).get(id)
     if not img: return JSONResponse({"error":"not found"}, status_code=404)

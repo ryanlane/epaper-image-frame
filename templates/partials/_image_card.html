@@ -8,21 +8,33 @@
       
       <!-- Crop controls -->
       <div class="crop-controls">
-        <h4>Crop Settings</h4>
-        <div class="crop-preview">
-          <img src="/static/uploads/{{ image.filename }}" id="crop-preview-{{ image.id }}" style="max-width: 200px; max-height: 150px;">
-          <div class="crop-overlay" id="crop-overlay-{{ image.id }}"></div>
+        <div class="crop-header" onclick="toggleCropSettings('{{ image.id }}')">
+          <span>Crop Settings</span>
+          <span class="crop-toggle" id="crop-toggle-{{ image.id }}">▼</span>
         </div>
-        <div class="crop-inputs">
-          <label>X: <input type="range" id="crop-x-{{ image.id }}" min="0" max="100" value="{{ image.crop_x or 0 }}">
-            <span id="crop-x-val-{{ image.id }}">{{ image.crop_x or 0 }}%</span></label>
-          <label>Y: <input type="range" id="crop-y-{{ image.id }}" min="0" max="100" value="{{ image.crop_y or 0 }}">
-            <span id="crop-y-val-{{ image.id }}">{{ image.crop_y or 0 }}%</span></label>
-          <label>Width: <input type="range" id="crop-width-{{ image.id }}" min="10" max="100" value="{{ image.crop_width or 100 }}">
-            <span id="crop-width-val-{{ image.id }}">{{ image.crop_width or 100 }}%</span></label>
-          <label>Height: <input type="range" id="crop-height-{{ image.id }}" min="10" max="100" value="{{ image.crop_height or 100 }}">
-            <span id="crop-height-val-{{ image.id }}">{{ image.crop_height or 100 }}%</span></label>
+        <div class="crop-content" id="crop-content-{{ image.id }}" style="display: none;">
+          <div class="crop-container" id="crop-container-{{ image.id }}">
+            <img src="/static/uploads/{{ image.filename }}" id="crop-preview-{{ image.id }}" class="crop-image">
+            <div class="crop-selector" id="crop-selector-{{ image.id }}">
+              <div class="crop-handle crop-handle-nw"></div>
+              <div class="crop-handle crop-handle-ne"></div>
+              <div class="crop-handle crop-handle-sw"></div>
+              <div class="crop-handle crop-handle-se"></div>
+            </div>
+          </div>
+          <div class="crop-info">
+            <span>Drag to select crop area. Aspect ratio locked to display settings.</span>
+            <div class="crop-values">
+              Position: <span id="crop-display-{{ image.id }}">{{ image.crop_x or 0 }}%, {{ image.crop_y or 0 }}%</span> | 
+              Size: <span id="crop-size-{{ image.id }}">{{ image.crop_width or 100 }}% × {{ image.crop_height or 100 }}%</span>
+            </div>
+          </div>
         </div>
+        <!-- Hidden inputs to store crop values -->
+        <input type="hidden" id="crop-x-{{ image.id }}" value="{{ image.crop_x or 0 }}">
+        <input type="hidden" id="crop-y-{{ image.id }}" value="{{ image.crop_y or 0 }}">
+        <input type="hidden" id="crop-width-{{ image.id }}" value="{{ image.crop_width or 100 }}">
+        <input type="hidden" id="crop-height-{{ image.id }}" value="{{ image.crop_height or 100 }}">
       </div>
       
       <div class="edit-buttons">
@@ -44,8 +56,8 @@
       aria-pressed="{{ 'true' if image.enabled else 'false' }}">
       {{ 'Disable' if image.enabled else 'Enable' }}
     </button>
-    <button class="edit-image" data-id="{{ image.id }}">Edit</button>
-    <button class="show-now" data-id="{{ image.id }}">Show now</button>
-    <form method="post" action="/image/{{image.id}}/delete" onsubmit="return confirm('Delete image?')"><button>Delete</button></form>
+    <button class="edit-image" data-id="{{ image.id }}">✏️</button>
+    <button class="show-now" data-id="{{ image.id }}">▶️</button>
+    <button class="delete-image" data-id="{{ image.id }}">🗑️</button>
   </div>
 </div>

@@ -141,40 +141,97 @@ main {
     font-size: 0.9rem;
 }
 
-.crop-preview {
+.crop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    margin: 0;
+    padding: 0.25rem 0;
+    font-size: 0.9rem;
+    font-weight: bold;
+    user-select: none;
+}
+
+.crop-header:hover {
+    color: #ff6600;
+}
+
+.crop-toggle {
+    font-size: 1rem;
+    transition: transform 0.2s ease;
+}
+
+.crop-content {
+    margin-top: 0.5rem;
+}
+
+.crop-container {
     position: relative;
     display: inline-block;
+    max-width: 300px;
     margin-bottom: 0.5rem;
 }
 
-.crop-overlay {
+.crop-image {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 4px;
+}
+
+.crop-selector {
     position: absolute;
     border: 2px solid #ff6600;
-    pointer-events: none;
+    background: rgba(255, 102, 0, 0.1);
+    cursor: move;
+    min-width: 20px;
+    min-height: 20px;
     box-sizing: border-box;
 }
 
-.crop-inputs {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.25rem;
+.crop-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #ff6600;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    cursor: pointer;
 }
 
-.crop-inputs label {
-    display: flex;
-    align-items: center;
+.crop-handle-nw {
+    top: -6px;
+    left: -6px;
+    cursor: nw-resize;
+}
+
+.crop-handle-ne {
+    top: -6px;
+    right: -6px;
+    cursor: ne-resize;
+}
+
+.crop-handle-sw {
+    bottom: -6px;
+    left: -6px;
+    cursor: sw-resize;
+}
+
+.crop-handle-se {
+    bottom: -6px;
+    right: -6px;
+    cursor: se-resize;
+}
+
+.crop-info {
     font-size: 0.8rem;
-    margin-bottom: 0.25rem;
+    color: #ccc;
 }
 
-.crop-inputs input[type="range"] {
-    flex: 1;
-    margin: 0 0.5rem;
-}
-
-.crop-inputs span {
-    min-width: 40px;
-    text-align: right;
+.crop-values {
+    margin-top: 0.25rem;
+    font-family: monospace;
 }
 
 .label {
