@@ -14,38 +14,8 @@
 </div>
 
 <div class="grid">
-  {% for i in images %}
-  <div class="card {{ '' if i.enabled else 'is-disabled' }}" id="img-{{ i.id }}">
-    <img src="/static/thumbs/{{ i.filename }}" alt="" style="width:100%;border-radius:8px">
-    <div class="image-info">
-      <div class="title-display" id="title-display-{{ i.id }}">{{ i.title or i.original_name }}</div>
-      <div class="title-edit" id="title-edit-{{ i.id }}" style="display: none;">
-        <input type="text" id="title-input-{{ i.id }}" value="{{ i.title or i.original_name }}" placeholder="Image title">
-        <textarea id="desc-input-{{ i.id }}" placeholder="Description">{{ i.description }}</textarea>
-        <div class="edit-buttons">
-          <button class="save-edit" data-id="{{ i.id }}">Save</button>
-          <button class="cancel-edit" data-id="{{ i.id }}">Cancel</button>
-        </div>
-      </div>
-      {% if i.description %}
-        <div class="description" id="desc-display-{{ i.id }}">{{ i.description }}</div>
-      {% endif %}
-    </div>
-    <div class="row" style="justify-content:space-between;margin-top:.5rem">
-      <small>Shown {{ i.times_shown }} times</small>
-    </div>
-    <div class="row" style="margin-top:.5rem">
-      <button
-        class="toggle-enabled"
-        data-id="{{ i.id }}"
-        aria-pressed="{{ 'true' if i.enabled else 'false' }}">
-        {{ 'Disable' if i.enabled else 'Enable' }}
-      </button>
-      <button class="edit-image" data-id="{{ i.id }}">Edit</button>
-      <button class="show-now" data-id="{{ i.id }}">Show now</button>
-      <form method="post" action="/image/{{i.id}}/delete" onsubmit="return confirm('Delete image?')"><button>Delete</button></form>
-    </div>
-  </div>
+  {% for image in images %}
+    {% include 'partials/_image_card.html' %}
   {% endfor %}
 </div>
 

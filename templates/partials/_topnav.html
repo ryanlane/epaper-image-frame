@@ -1,29 +1,8 @@
-<nav class="topnav">
-  <div class="wrap row">
-    <a class="brand" href="/">E‑Ink Frame</a>
-
-    <button class="nav-toggle" aria-label="Toggle menu" onclick="
-      const n=document.getElementById('navlinks'); n.hidden = !n.hidden;
-    ">☰</button>
-
-    <div id="navlinks" class="links" hidden>
-      <a class="{{ 'active' if request.url.path=='/' else '' }}" href="/">Home</a>
-      <a class="{{ 'active' if request.url.path=='/upload' else '' }}" href="/upload">Upload</a>
-      <a class="{{ 'active' if request.url.path=='/settings' else '' }}" href="/settings">Settings</a>
+<nav class="navbar">
+    <div class="menu-toggle" onclick="toggleMenu()">☰</div>
+    <div class="nav-links" id="navLinks">
+        <a class="{{ 'active' if request.url.path=='/' else '' }}" href="/">Home</a>
+  <a class="{{ 'active' if request.url.path=='/upload' else '' }}" href="/upload">Upload</a>
+  <a class="{{ 'active' if request.url.path=='/settings' else '' }}" href="/settings">Settings</a>
     </div>
-  </div>
 </nav>
-
-<style>
-.topnav{background:rgba(0,0,0,.2);backdrop-filter:saturate(120%) blur(6px);position:sticky;top:0}
-.topnav .row{display:flex;align-items:center;gap:12px;padding:10px 0}
-.topnav .brand{font-weight:800;text-decoration:none;color:#fff}
-.topnav .links a{margin-right:1em;text-decoration:none;font-weight:600;color:#fff;opacity:.9}
-.topnav .links a.active{border-bottom:2px solid #6aa2ff}
-.nav-toggle{margin-left:auto;background:none;border:none;font-size:1.3rem;color:#fff;display:none;cursor:pointer}
-@media (max-width: 720px){
-  .nav-toggle{display:block}
-  .topnav .links{display:flex;flex-direction:column;padding:8px 0}
-  .topnav .links a{margin:6px 0}
-}
-</style>

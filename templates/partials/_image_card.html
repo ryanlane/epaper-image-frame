@@ -1,0 +1,31 @@
+<div class="card {{ '' if image.enabled else 'is-disabled' }}" id="img-{{ image.id }}">
+  <img src="/static/thumbs/{{ image.filename }}" alt="" style="width:100%;border-radius:8px">
+  <div class="image-info">
+    <div class="title-display" id="title-display-{{ image.id }}">{{ image.title or image.original_name }}</div>
+    <div class="title-edit" id="title-edit-{{ image.id }}" style="display: none;">
+      <input type="text" id="title-input-{{ image.id }}" value="{{ image.title or image.original_name }}" placeholder="Image title">
+      <textarea id="desc-input-{{ image.id }}" placeholder="Description">{{ image.description }}</textarea>
+      <div class="edit-buttons">
+        <button class="save-edit" data-id="{{ image.id }}">Save</button>
+        <button class="cancel-edit" data-id="{{ image.id }}">Cancel</button>
+      </div>
+    </div>
+    {% if image.description %}
+      <div class="description" id="desc-display-{{ image.id }}">{{ image.description }}</div>
+    {% endif %}
+  </div>
+  <div class="row" style="justify-content:space-between;margin-top:.5rem">
+    <small>Shown {{ image.times_shown }} times</small>
+  </div>
+  <div class="row" style="margin-top:.5rem">
+    <button
+      class="toggle-enabled"
+      data-id="{{ image.id }}"
+      aria-pressed="{{ 'true' if image.enabled else 'false' }}">
+      {{ 'Disable' if image.enabled else 'Enable' }}
+    </button>
+    <button class="edit-image" data-id="{{ image.id }}">Edit</button>
+    <button class="show-now" data-id="{{ image.id }}">Show now</button>
+    <form method="post" action="/image/{{image.id}}/delete" onsubmit="return confirm('Delete image?')"><button>Delete</button></form>
+  </div>
+</div>

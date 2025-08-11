@@ -16,14 +16,7 @@
   </style>
 </head>
 <body>
-  <nav class="navbar">
-        <div class="menu-toggle" onclick="toggleMenu()">☰</div>
-        <div class="nav-links" id="navLinks">
-            <a class="{{ 'active' if request.url.path=='/' else '' }}" href="/">Home</a>
-      <a class="{{ 'active' if request.url.path=='/upload' else '' }}" href="/upload">Upload</a>
-      <a class="{{ 'active' if request.url.path=='/settings' else '' }}" href="/settings">Settings</a>
-        </div>
-    </nav>
+  {% include 'partials/_topnav.html' %}
   <main>
         {% if dev_mode %}
             <div class="dev-mode-text"><strong>Developer Mode:</strong> Frame is not being sent to e-ink display.</div>
