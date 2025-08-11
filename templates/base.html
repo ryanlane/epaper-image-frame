@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}E‑Ink Image Frame{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.ico">
+  <link rel="stylesheet" href="/static/css/main.css">
+  {% block head_extra %}{% endblock %}
+  <style>
+    /* minimal sane defaults if main.css is missing */
+    :root{color-scheme:light dark}
+    body{margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#111;color:#eee}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    .container{padding:16px}
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+        <div class="menu-toggle" onclick="toggleMenu()">☰</div>
+        <div class="nav-links" id="navLinks">
+            <a class="{{ 'active' if request.url.path=='/' else '' }}" href="/">Home</a>
+      <a class="{{ 'active' if request.url.path=='/upload' else '' }}" href="/upload">Upload</a>
+      <a class="{{ 'active' if request.url.path=='/settings' else '' }}" href="/settings">Settings</a>
+        </div>
+    </nav>
+  <main>
+        {% if dev_mode %}
+            <div class="dev-mode-text"><strong>Developer Mode:</strong> Frame is not being sent to e-ink display.</div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+
+  {% block scripts %}{% endblock %}
+
+    <script>
+        function toggleMenu() {
+            const navLinks = document.getElementById('navLinks');
+            navLinks.classList.toggle('show');
+        }
+    </script>
+</body>
+</html>

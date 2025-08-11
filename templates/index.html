@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Home • E‑Ink Frame{% endblock %}
+
+{% block content %}
+<h1>Library</h1>
+<div class="row">
+  <span class="badge">Current: <code>static/current.jpg</code></span>
+  <form method="post" action="/settings" class="row">
+    <label>Interval (ms) <input type="number" name="interval_ms" value="{{settings.interval_ms}}"></label>
+    <label>Order
+      <select name="order_mode">
+        <option value="added" {% if settings.order_mode=='added' %}selected{% endif %}>Added</option>
+        <option value="random" {% if settings.order_mode=='random' %}selected{% endif %}>Random</option>
+        <option value="custom" {% if settings.order_mode=='custom' %}selected{% endif %}>Custom</option>
+      </select>
+    </label>
+    <label>Slideshow
+      <select name="slideshow_enabled">
+        <option value="1" {% if settings.slideshow_enabled %}selected{% endif %}>On</option>
+        <option value="0" {% if not settings.slideshow_enabled %}selected{% endif %}>Off</option>
+      </select>
+    </label>
+    <button>Save</button>
+  </form>
+  <span class="badge">Current: <code>static/current.jpg</code></span>
+</div>
+
+<div class="grid">
+  {% for i in images %}
+  <div class="card {{ '' if i.enabled else 'is-disabled' }}" id="img-{{ i.id }}">
+    <img src="/static/thumbs/{{ i.filename }}" alt="" style="width:100%;border-radius:8px">
+    <div class="row" style="justify-content:space-between;margin-top:.5rem">
+      <strong style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">{{ i.title or i.original_name }}</strong>
+      <span class="badge">{{ 'On' if i.enabled else 'Off' }}</span>
+    </div>
+    <div class="row" style="margin-top:.5rem">
+      <button
+        class="toggle-enabled"
+        data-id="{{ i.id }}"
+        aria-pressed="{{ 'true' if i.enabled else 'false' }}">
+        {{ 'Disable' if i.enabled else 'Enable' }}
+      </button>
+      <button class="show-now" data-id="{{ i.id }}">Show now</button>
+      <form method="post" action="/image/{{i.id}}/delete" onsubmit="return confirm('Delete image?')"><button>Delete</button></form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+  document.addEventListener('click', async (e) => {
+  // SHOW NOW
+  const showBtn = e.target.closest('.show-now');
+  if (showBtn) {
+    e.preventDefault();
+    const id = showBtn.dataset.id;
+    try {
+      const res = await fetch(`/show-now/${id}`, { method: 'POST' });
+      if (!res.ok) throw new Error('Bad response');
+      // If you have a preview <img id="currentPreview" src="/static/current.jpg">
+      const img = document.querySelector('#currentPreview');
+      if (img) img.src = `/static/current.jpg?ts=${Date.now()}`; // bust cache
+    } catch (err) {
+      alert('Failed to show image now.');
+      console.error(err);
+    }
+    return;
+  }
+
+  // TOGGLE ENABLED
+  const toggleBtn = e.target.closest('.toggle-enabled');
+  if (toggleBtn) {
+    e.preventDefault();
+    const id = toggleBtn.dataset.id;
+    try {
+      const res = await fetch(`/image/${id}/toggle`, { method: 'POST' });
+      if (!res.ok) throw new Error('Bad response');
+      const data = await res.json(); // { enabled: true|false }
+
+      // Update button label and aria-pressed
+      toggleBtn.textContent = data.enabled ? 'Disable' : 'Enable';
+      toggleBtn.setAttribute('aria-pressed', data.enabled ? 'true' : 'false');
+
+      // Optional: visually mark disabled cards
+      const card = document.getElementById(`img-${id}`);
+      if (card) card.classList.toggle('is-disabled', !data.enabled);
+    } catch (err) {
+      alert('Failed to toggle image.');
+      console.error(err);
+    }
+  }
+});
+</script>
+{% endblock %}
