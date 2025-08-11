@@ -28,7 +28,7 @@ A web-based digital photo frame application designed for e-ink displays, featuri
 
 ### Prerequisites
 - Python 3.8+
-- Optional: Inky e-paper display (compatible models)
+- [Pimoroni Inky](https://shop.pimoroni.com/products/inky-impression-7-3?variant=55186435244411) e-paper display
 
 ### Installation
 
