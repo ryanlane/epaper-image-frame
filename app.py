@@ -1,9 +1,11 @@
 import os, random, threading, time
+from datetime import datetime, timezone
 from fastapi import FastAPI, Request, UploadFile, File, Form, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import case
 from database import SessionLocal, init_db
 from models import Settings, Image
 from utils import eframe_inky
@@ -135,11 +137,36 @@ def show_now(id: int, db: Session = Depends(get_db)):
 
 def pick_next(db: Session, s: Settings) -> Image | None:
     q = db.query(Image).filter(Image.enabled == True)
+
     if s.order_mode == "random":
         imgs = q.all()
         return random.choice(imgs) if imgs else None
-    # added/custom: order by sort_order then created_at
-    return q.order_by(Image.sort_order.asc(), Image.created_at.asc()).first()
+
+    # Prefer images never shown, then least-recently shown.
+    never_shown_first = case((Image.last_shown_at.is_(None), 0), else_=1)
+
+    if s.order_mode == "custom":
+        # honor custom sort first when tie-breaking
+        return (
+            q.order_by(
+                never_shown_first.asc(),
+                Image.last_shown_at.asc(),
+                Image.sort_order.asc(),
+                Image.created_at.asc(),
+            )
+            .first()
+        )
+    else:  # "added"
+        # show by added time when tie-breaking
+        return (
+            q.order_by(
+                never_shown_first.asc(),
+                Image.last_shown_at.asc(),
+                Image.created_at.asc(),
+                Image.sort_order.asc(),
+            )
+            .first()
+        )
 
 def slideshow_loop():
     while not SLIDESHOW_THREAD["stop"]:
@@ -157,7 +184,7 @@ def slideshow_loop():
                                          "static/current.jpg", s.resolution)
                         eframe_inky.show_on_inky("static/current.jpg")
                         img.times_shown += 1
-                        img.last_shown_at = None  # set timestamp if you want
+                        img.last_shown_at = datetime.now(timezone.utc)
                         db.commit()
         except Exception as e:
             print("Slideshow error:", e)
