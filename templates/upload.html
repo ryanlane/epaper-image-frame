@@ -9,6 +9,9 @@
       <span>Select Images</span>
       <input type="file" name="files" accept="image/*" multiple required>
       <small>Hold Ctrl (or Cmd on Mac) to select multiple images</small>
+      <div id="safariNotice" style="display: none; background: #ff9500; color: #000; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.85rem;">
+        <strong>Safari on iOS:</strong> For best results, upload 5 or fewer images at a time. Larger batches may fail due to browser limitations.
+      </div>
     </label>
   </div>
   <button type="submit" id="uploadBtn">Upload Images</button>
@@ -54,8 +57,19 @@ document.getElementById('uploadForm').addEventListener('submit', async function(
     return;
   }
   
-  if (files.length > 20) {
-    if (!confirm(`You've selected ${files.length} images. This might take a while. Continue?`)) {
+  // Safari iOS specific: Limit batch size for better stability
+  const isSafariIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const maxBatchSize = isSafariIOS ? 5 : 20;
+  
+  if (files.length > maxBatchSize) {
+    const message = isSafariIOS 
+      ? `Safari on iOS works best with ${maxBatchSize} or fewer images at a time. You've selected ${files.length} images. Please select fewer images or use a desktop browser for large batches.`
+      : `You've selected ${files.length} images. This might take a while. Continue?`;
+    
+    if (isSafariIOS) {
+      alert(message);
+      return;
+    } else if (!confirm(message)) {
       return;
     }
   }
@@ -73,16 +87,52 @@ document.getElementById('uploadForm').addEventListener('submit', async function(
   submitBtn.textContent = 'Starting upload...';
   
   try {
-    // Create FormData and submit
+    // Safari iOS specific: Create FormData more carefully
     const formData = new FormData();
-    for (let file of files) {
-      formData.append('files', file);
+    
+    // Add files one by one with error handling for Safari
+    for (let i = 0; i < files.length; i++) {
+      try {
+        formData.append('files', files[i]);
+        console.log(`Added file ${i + 1}/${files.length}: ${files[i].name}`);
+      } catch (error) {
+        console.error(`Failed to add file ${files[i].name}:`, error);
+        throw new Error(`Failed to prepare file ${files[i].name} for upload`);
+      }
     }
     
-    const response = await fetch('/upload', {
-      method: 'POST',
-      body: formData
-    });
+    // Safari iOS specific: Add longer timeout and retry logic
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    
+    let response;
+    let retries = isSafariIOS ? 2 : 0; // Allow retries on Safari iOS
+    
+    while (retries >= 0) {
+      try {
+        response = await fetch('/upload', {
+          method: 'POST',
+          body: formData,
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        break; // Success, exit retry loop
+        
+      } catch (error) {
+        if (retries > 0 && (error.name === 'AbortError' || error.name === 'TypeError')) {
+          console.log(`Upload attempt failed, retrying... (${retries} retries left)`);
+          retries--;
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+          continue;
+        }
+        throw error; // No more retries or different error
+      }
+    }
+    
+    if (!response) {
+      throw new Error('Upload failed after retries');
+    }
     
     const result = await response.json();
     
@@ -93,12 +143,22 @@ document.getElementById('uploadForm').addEventListener('submit', async function(
     currentTaskId = result.task_id;
     document.getElementById('progressText').textContent = `Upload queued (${files.length} files)`;
     
-    // Start polling for status
-    statusInterval = setInterval(checkUploadStatus, 500);
+    // Start polling for status with Safari-friendly interval
+    const pollInterval = isSafariIOS ? 1000 : 500; // Slower polling on Safari iOS
+    statusInterval = setInterval(checkUploadStatus, pollInterval);
     
   } catch (error) {
     console.error('Upload error:', error);
-    document.getElementById('progressText').textContent = 'Upload failed: ' + error.message;
+    let errorMessage = error.message;
+    
+    // Safari-specific error messages
+    if (error.name === 'AbortError') {
+      errorMessage = 'Upload timed out. Please try with fewer images or check your connection.';
+    } else if (error.name === 'TypeError' && error.message.includes('network')) {
+      errorMessage = 'Network error. Please check your connection and try again.';
+    }
+    
+    document.getElementById('progressText').textContent = 'Upload failed: ' + errorMessage;
     submitBtn.disabled = false;
     submitBtn.textContent = 'Upload Images';
     isUploading = false; // Reset upload flag on error
@@ -109,7 +169,16 @@ async function checkUploadStatus() {
   if (!currentTaskId) return;
   
   try {
-    const response = await fetch(`/upload/status/${currentTaskId}`);
+    // Safari iOS specific: Add timeout to status checks
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for status checks
+    
+    const response = await fetch(`/upload/status/${currentTaskId}`, {
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
     const status = await response.json();
     
     if (!response.ok) {
@@ -127,9 +196,15 @@ async function checkUploadStatus() {
       document.getElementById('progressText').textContent = `Processing images...`;
       document.getElementById('progressDetails').textContent = 
         `${status.uploaded} of ${status.total} images processed`;
+        
+      // Safari iOS: Add current file info if available
+      if (status.current_file) {
+        document.getElementById('progressDetails').textContent += ` (${status.current_file})`;
+      }
     } else if (status.status === 'completed') {
       // Upload finished
       clearInterval(statusInterval);
+      statusInterval = null; // Clear reference
       document.getElementById('progressText').textContent = 'Upload completed!';
       document.getElementById('progressDetails').textContent = 
         `Successfully uploaded ${status.uploaded} of ${status.total} images`;
@@ -149,6 +224,7 @@ async function checkUploadStatus() {
     } else if (status.status === 'error') {
       // Upload failed
       clearInterval(statusInterval);
+      statusInterval = null; // Clear reference
       document.getElementById('progressText').textContent = 'Upload failed';
       showErrors(status.errors || ['Unknown error occurred']);
       
@@ -160,8 +236,23 @@ async function checkUploadStatus() {
     
   } catch (error) {
     console.error('Status check error:', error);
+    
+    // Safari-specific error handling
+    if (error.name === 'AbortError') {
+      console.log('Status check timed out, will retry on next interval');
+      return; // Don't stop polling on timeout, just skip this check
+    }
+    
+    // For other errors, stop polling
     clearInterval(statusInterval);
+    statusInterval = null;
     document.getElementById('progressText').textContent = 'Error checking upload status';
+    
+    // Reset state on persistent errors
+    const submitBtn = document.getElementById('uploadBtn');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Upload Images';
+    isUploading = false;
   }
 }
 
@@ -191,6 +282,21 @@ document.querySelector('input[type="file"]').addEventListener('change', function
     div.style.cssText = 'color: #0066cc; font-weight: bold; margin-top: 0.5rem;';
     div.textContent = `${count} image${count === 1 ? '' : 's'} selected`;
     e.target.parentNode.appendChild(div);
+    
+    // Show Safari warning if needed
+    const isSafariIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    if (isSafariIOS && count > 5) {
+      div.style.color = '#ff9500';
+      div.textContent += ' - Consider uploading in smaller batches for better reliability';
+    }
+  }
+});
+
+// Show Safari notice on page load if on Safari iOS
+document.addEventListener('DOMContentLoaded', function() {
+  const isSafariIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (isSafariIOS) {
+    document.getElementById('safariNotice').style.display = 'block';
   }
 });
 

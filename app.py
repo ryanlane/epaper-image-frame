@@ -353,21 +353,36 @@ def upload_form(request: Request):
 async def upload(request: Request):
     print(f"[UPLOAD] Upload endpoint called at {datetime.now()}")
     
-    form = await request.form()
-    print(f"[UPLOAD] Form keys: {list(form.keys())}")
+    # Log user agent for Safari detection
+    user_agent = request.headers.get("user-agent", "")
+    is_safari_ios = "iPhone" in user_agent or "iPad" in user_agent or "iPod" in user_agent
+    print(f"[UPLOAD] User-Agent: {user_agent}")
+    print(f"[UPLOAD] Safari iOS detected: {is_safari_ios}")
     
-    # Get title and description
-    title = form.get("title", "")
-    description = form.get("description", "")
-    print(f"[UPLOAD] Title: '{title}', Description: '{description}'")
-    
-    # Get files - FastAPI/Starlette handles multiple files from single input differently
-    files = form.getlist("files")
-    print(f"[UPLOAD] Received {len(files)} files")
-    
-    # Debug: Check for duplicate files in the form data
-    file_names = [getattr(f, 'filename', 'no-name') for f in files if hasattr(f, 'filename')]
-    print(f"[UPLOAD] File names: {file_names}")
+    try:
+        form = await request.form()
+        print(f"[UPLOAD] Form keys: {list(form.keys())}")
+        
+        # Get title and description
+        title = form.get("title", "")
+        description = form.get("description", "")
+        print(f"[UPLOAD] Title: '{title}', Description: '{description}'")
+        
+        # Get files - FastAPI/Starlette handles multiple files from single input differently
+        files = form.getlist("files")
+        print(f"[UPLOAD] Received {len(files)} files")
+        
+        # Safari iOS specific validation
+        if is_safari_ios and len(files) > 5:
+            print(f"[UPLOAD] WARNING: Safari iOS uploading {len(files)} files - may be unstable")
+        
+        # Debug: Check for duplicate files in the form data
+        file_names = [getattr(f, 'filename', 'no-name') for f in files if hasattr(f, 'filename')]
+        print(f"[UPLOAD] File names: {file_names}")
+        
+    except Exception as e:
+        print(f"[UPLOAD] Error reading form data: {e}")
+        return JSONResponse({"error": f"Failed to read upload data: {str(e)}"}, status_code=400)
     
     # Count duplicates
     from collections import Counter
@@ -383,14 +398,41 @@ async def upload(request: Request):
     task_id = str(uuid.uuid4())
     
     # Read file contents into memory (since we can't pass file objects between threads)
+    # Safari iOS specific: Add better error handling for file reading
     files_data = []
-    for file in files:
-        if hasattr(file, 'filename') and file.filename:
-            content = await file.read()
-            files_data.append((file.filename, content))
-            print(f"[UPLOAD] Queuing file: {file.filename} ({len(content)} bytes)")
+    failed_files = []
     
-    print(f"[UPLOAD] Total files to queue: {len(files_data)}")
+    for i, file in enumerate(files):
+        if hasattr(file, 'filename') and file.filename:
+            try:
+                print(f"[UPLOAD] Reading file {i+1}/{len(files)}: {file.filename}")
+                content = await file.read()
+                
+                if len(content) == 0:
+                    print(f"[UPLOAD] WARNING: File {file.filename} is empty, skipping")
+                    failed_files.append(f"{file.filename} (empty file)")
+                    continue
+                    
+                files_data.append((file.filename, content))
+                print(f"[UPLOAD] Successfully queued: {file.filename} ({len(content)} bytes)")
+                
+            except Exception as e:
+                print(f"[UPLOAD] ERROR: Failed to read file {file.filename}: {e}")
+                failed_files.append(f"{file.filename} (read error: {str(e)})")
+                continue
+    
+    if not files_data:
+        error_msg = "No files could be processed"
+        if failed_files:
+            error_msg += f". Failed files: {', '.join(failed_files)}"
+        return JSONResponse({"error": error_msg}, status_code=400)
+    
+    if failed_files:
+        print(f"[UPLOAD] WARNING: Some files failed to process: {failed_files}")
+    
+    print(f"[UPLOAD] Total files to queue: {len(files_data)} (failed: {len(failed_files)})")
+    
+    # Log file details for debugging
     file_hashes = {}
     for i, (filename, content) in enumerate(files_data):
         content_hash = hashlib.sha256(content).hexdigest()[:16]
