@@ -80,10 +80,29 @@ The application uses `python-dotenv` to load environment variables from the `.en
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
-- [Pimoroni Inky](https://shop.pimoroni.com/products/inky-impression-7-3?variant=55186435244411) e-paper display
+- Raspberry Pi running Raspbian/Raspberry Pi OS
+- Python 3.8+ (usually pre-installed)
+- [Pimoroni Inky](https://shop.pimoroni.com/products/inky-impression-7-3?variant=55186435244411) e-paper display (optional for development)
 
-### Installation
+### Easy Installation
+
+**Option 1: Automated Installation (Recommended)**
+
+```bash
+git clone https://github.com/ryanlane/epaper-image-frame.git
+cd epaper-image-frame
+./install.sh
+```
+
+The installation script will:
+- ✅ Check Python version compatibility
+- ✅ Create a virtual environment
+- ✅ Install all dependencies
+- ✅ Set up the database
+- ✅ Create necessary directories
+- ✅ Configure development environment
+
+**Option 2: Manual Installation**
 
 1. **Clone the repository**
    ```bash
@@ -129,6 +148,7 @@ epaper-image-frame/
 ├── migrate_db.py             # Initial database migration script
 ├── migrate_aspect_ratio.py   # Aspect ratio feature migration script
 ├── cleanup_images.py         # Development tool for removing all images
+├── install.sh                # Installation script for Raspberry Pi
 ├── .env                      # Environment configuration (create this file)
 ├── requirements.txt          # Python dependencies
 ├── photo_frame.db            # SQLite database (created automatically)
