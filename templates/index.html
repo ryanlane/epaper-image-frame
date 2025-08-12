@@ -3,16 +3,30 @@
 
 {% block content %}
 
-
 {% if images %}
 <div class="row">
   <div class="current">    
     <div class="current-image">
-      <img id="currentPreview" src="/static/current.jpg" alt="Current Image"><br/>
-      <span>Current Image</span>
+      {% if current_image_exists %}
+        <img id="currentPreview" src="/static/current.jpg" alt="Current Image"><br/>
+        <span>Current Image</span>
+      {% else %}
+        <div class="placeholder-image">
+          <div class="placeholder-icon">🖼️</div>
+          <span>No Current Image</span>
+          <p class="placeholder-text">
+            {% if images %}
+              Processing... Current image will appear shortly
+            {% else %}
+              Upload images to get started
+            {% endif %}
+          </p>
+        </div>
+      {% endif %}
     </div>
   </div>
 </div>
+
 
 <h1>Library</h1>
 <div class="grid">

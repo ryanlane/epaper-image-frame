@@ -23,7 +23,7 @@
   
   <div id="uploadComplete" style="display: none;">
     <div style="color: #28a745; font-weight: bold; margin-top: 1rem;">Upload completed!</div>
-    <button onclick="window.location.href='/'" style="margin-top: 0.5rem;">Go to Gallery</button>
+    <button onclick="goToGallery()" style="margin-top: 0.5rem;">Go to Gallery</button>
   </div>
   
   <div id="uploadErrors" style="display: none; margin-top: 1rem;">
@@ -35,9 +35,16 @@
 <script>
 let currentTaskId = null;
 let statusInterval = null;
+let isUploading = false; // Prevent double submissions
 
 document.getElementById('uploadForm').addEventListener('submit', async function(e) {
   e.preventDefault();
+  
+  // Prevent double submissions
+  if (isUploading) {
+    console.log('Upload already in progress, ignoring submission');
+    return;
+  }
   
   const fileInput = document.querySelector('input[type="file"]');
   const files = fileInput.files;
@@ -52,6 +59,9 @@ document.getElementById('uploadForm').addEventListener('submit', async function(
       return;
     }
   }
+  
+  // Set uploading flag and update UI
+  isUploading = true;
   
   // Reset UI
   document.getElementById('uploadProgress').style.display = 'block';
@@ -91,6 +101,7 @@ document.getElementById('uploadForm').addEventListener('submit', async function(
     document.getElementById('progressText').textContent = 'Upload failed: ' + error.message;
     submitBtn.disabled = false;
     submitBtn.textContent = 'Upload Images';
+    isUploading = false; // Reset upload flag on error
   }
 });
 
@@ -129,10 +140,11 @@ async function checkUploadStatus() {
         showErrors(status.errors);
       }
       
-      // Reset button
+      // Reset button and upload flag
       const submitBtn = document.getElementById('uploadBtn');
       submitBtn.disabled = false;
       submitBtn.textContent = 'Upload Images';
+      isUploading = false; // Reset upload flag on completion
       
     } else if (status.status === 'error') {
       // Upload failed
@@ -143,6 +155,7 @@ async function checkUploadStatus() {
       const submitBtn = document.getElementById('uploadBtn');
       submitBtn.disabled = false;
       submitBtn.textContent = 'Upload Images';
+      isUploading = false; // Reset upload flag on error
     }
     
   } catch (error) {
@@ -180,6 +193,38 @@ document.querySelector('input[type="file"]').addEventListener('change', function
     e.target.parentNode.appendChild(div);
   }
 });
+
+function goToGallery() {
+  console.log('[UPLOAD] Go to Gallery button clicked - cleaning up state');
+  
+  // Clear any remaining intervals
+  if (statusInterval) {
+    clearInterval(statusInterval);
+    statusInterval = null;
+  }
+  
+  // Reset all state
+  currentTaskId = null;
+  isUploading = false;
+  
+  // Clear form
+  document.getElementById('uploadForm').reset();
+  
+  // Hide all progress/status elements
+  document.getElementById('uploadProgress').style.display = 'none';
+  document.getElementById('uploadComplete').style.display = 'none';
+  document.getElementById('uploadErrors').style.display = 'none';
+  
+  // Reset button state
+  const submitBtn = document.getElementById('uploadBtn');
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'Upload Images';
+  
+  console.log('[UPLOAD] State cleared, navigating to gallery');
+  
+  // Navigate to gallery
+  window.location.href = '/';
+}
 </script>
 
 <style>

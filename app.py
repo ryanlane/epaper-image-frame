@@ -1,4 +1,8 @@
-import os, random, threading, time, queue, uuid
+import os, random, threading, time, queue, uuid, hashlib
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone, timedelta
+from typing import List, Dict, Any
+import os, random, threading, time, queue, uuid, hashlib
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
@@ -168,6 +172,9 @@ def stop_display_worker():
 
 def upload_worker():
     """Worker thread that processes upload queue in background"""
+    worker_id = threading.current_thread().ident
+    print(f"[UPLOAD] Worker {worker_id} started")
+    
     while not UPLOAD_THREAD["stop"]:
         try:
             upload_task = UPLOAD_QUEUE.get(timeout=1)
@@ -175,6 +182,13 @@ def upload_worker():
                 break
                 
             task_id, files_data, title, description = upload_task
+            print(f"[UPLOAD] Worker {worker_id} processing task {task_id} with {len(files_data)} files")
+            
+            # Check if this task is already being processed
+            if task_id in UPLOAD_STATUS and UPLOAD_STATUS[task_id]["status"] == "processing":
+                print(f"[UPLOAD] ERROR: Task {task_id} is already being processed! Skipping duplicate.")
+                UPLOAD_QUEUE.task_done()
+                continue
             
             # Update status
             UPLOAD_STATUS[task_id] = {
@@ -200,7 +214,12 @@ def upload_worker():
                         UPLOAD_STATUS[task_id]["progress"] = i
                         UPLOAD_STATUS[task_id]["current_file"] = filename
                         UPLOAD_STATUS[task_id]["last_activity"] = datetime.now()
-                        print(f"[UPLOAD] Processing {i+1}/{len(files_data)}: {filename}")
+                        print(f"[UPLOAD] Processing {i+1}/{len(files_data)}: {filename} ({len(file_content)} bytes)")
+                        
+                        # Check for duplicate files in the current batch
+                        duplicate_in_batch = sum(1 for f, _ in files_data if f == filename)
+                        if duplicate_in_batch > 1:
+                            print(f"[UPLOAD] WARNING: Found {duplicate_in_batch} instances of {filename} in current batch!")
                         
                         # Use filename as title if no default title provided
                         file_title = title if title.strip() else os.path.splitext(filename)[0]
@@ -217,6 +236,12 @@ def upload_worker():
                         fname, w, h, exif_json = save_upload(file_obj, s.image_root, s.thumb_root)
                         print(f"[UPLOAD] File saved as: {fname} ({w}x{h})")
                         
+                        # Check if this filename already exists in database
+                        existing_img = db.query(Image).filter(Image.filename == fname).first()
+                        if existing_img:
+                            print(f"[UPLOAD] WARNING: File {fname} already exists in database, skipping")
+                            continue
+                        
                         # Calculate smart default crop
                         UPLOAD_STATUS[task_id]["last_activity"] = datetime.now()
                         crop_x, crop_y, crop_width, crop_height = calculate_smart_crop(w, h, s.resolution)
@@ -230,11 +255,19 @@ def upload_worker():
                                     crop_x=crop_x, crop_y=crop_y, 
                                     crop_width=crop_width, crop_height=crop_height)
                         db.add(img)
-                        uploaded_count += 1
-                        UPLOAD_STATUS[task_id]["uploaded"] = uploaded_count
-                        UPLOAD_STATUS[task_id]["last_activity"] = datetime.now()
                         
-                        print(f"[UPLOAD] Successfully processed: {filename} (crop: {crop_x:.1f}%, {crop_y:.1f}%, {crop_width:.1f}%x{crop_height:.1f}%)")
+                        # Flush to check for any database errors before continuing
+                        try:
+                            db.flush()
+                            uploaded_count += 1
+                            UPLOAD_STATUS[task_id]["uploaded"] = uploaded_count
+                            UPLOAD_STATUS[task_id]["last_activity"] = datetime.now()
+                            print(f"[UPLOAD] Successfully processed: {filename} (crop: {crop_x:.1f}%, {crop_y:.1f}%, {crop_width:.1f}%x{crop_height:.1f}%)")
+                        except Exception as db_error:
+                            print(f"[UPLOAD] Database error for {filename}: {db_error}")
+                            db.rollback()
+                            # Continue with next file
+                            continue
                         
                     except Exception as e:
                         error_msg = f"Failed to upload {filename}: {str(e)}"
@@ -270,11 +303,14 @@ def upload_worker():
 
 def start_upload_worker():
     """Start the background upload worker thread"""
+    print(f"[UPLOAD] start_upload_worker called. Current thread: {UPLOAD_THREAD['t']}")
     if UPLOAD_THREAD["t"] is None or not UPLOAD_THREAD["t"].is_alive():
         UPLOAD_THREAD["stop"] = False
         UPLOAD_THREAD["t"] = threading.Thread(target=upload_worker, daemon=True)
         UPLOAD_THREAD["t"].start()
-        print("[UPLOAD] Worker thread started")
+        print(f"[UPLOAD] Worker thread started: {UPLOAD_THREAD['t'].ident}")
+    else:
+        print(f"[UPLOAD] Worker thread already running: {UPLOAD_THREAD['t'].ident}")
 
 def stop_upload_worker():
     """Stop the background upload worker thread"""
@@ -286,12 +322,23 @@ def stop_upload_worker():
 
 @app.get("/", name="home")
 def index(request: Request, db: Session = Depends(get_db)):
+    print(f"[INDEX] Index page requested at {datetime.now()}")
+    print(f"[INDEX] Request method: {request.method}")
+    print(f"[INDEX] Request headers: {dict(request.headers)}")
+    
     imgs = db.query(Image).order_by(Image.sort_order.asc(), Image.created_at.asc()).all()
     settings = db.query(Settings).first()
+    
+    # Check if current.jpg file actually exists
+    current_image_exists = os.path.exists("static/current.jpg")
+    
+    print(f"[INDEX] Found {len(imgs)} images, current_image_exists: {current_image_exists}")
+    
     return templates.TemplateResponse("index.html", {
         "request": request, 
         "images": imgs, 
         "settings": settings,
+        "current_image_exists": current_image_exists,
         "dev_mode": is_dev_mode()
     })
 
@@ -304,19 +351,30 @@ def upload_form(request: Request):
 
 @app.post("/upload")
 async def upload(request: Request):
-    print("Upload endpoint called")
+    print(f"[UPLOAD] Upload endpoint called at {datetime.now()}")
     
     form = await request.form()
-    print(f"Form keys: {list(form.keys())}")
+    print(f"[UPLOAD] Form keys: {list(form.keys())}")
     
     # Get title and description
     title = form.get("title", "")
     description = form.get("description", "")
-    print(f"Title: '{title}', Description: '{description}'")
+    print(f"[UPLOAD] Title: '{title}', Description: '{description}'")
     
     # Get files - FastAPI/Starlette handles multiple files from single input differently
     files = form.getlist("files")
-    print(f"Received {len(files)} files")
+    print(f"[UPLOAD] Received {len(files)} files")
+    
+    # Debug: Check for duplicate files in the form data
+    file_names = [getattr(f, 'filename', 'no-name') for f in files if hasattr(f, 'filename')]
+    print(f"[UPLOAD] File names: {file_names}")
+    
+    # Count duplicates
+    from collections import Counter
+    name_counts = Counter(file_names)
+    duplicates = {name: count for name, count in name_counts.items() if count > 1}
+    if duplicates:
+        print(f"[UPLOAD] WARNING: Duplicate filenames in form data: {duplicates}")
     
     if not files or not any(hasattr(f, 'filename') and f.filename for f in files):
         return JSONResponse({"error": "No valid files provided"}, status_code=400)
@@ -330,6 +388,17 @@ async def upload(request: Request):
         if hasattr(file, 'filename') and file.filename:
             content = await file.read()
             files_data.append((file.filename, content))
+            print(f"[UPLOAD] Queuing file: {file.filename} ({len(content)} bytes)")
+    
+    print(f"[UPLOAD] Total files to queue: {len(files_data)}")
+    file_hashes = {}
+    for i, (filename, content) in enumerate(files_data):
+        content_hash = hashlib.sha256(content).hexdigest()[:16]
+        print(f"[UPLOAD] File {i+1}: {filename} ({len(content)} bytes, hash: {content_hash})")
+        if content_hash in file_hashes:
+            print(f"[UPLOAD] WARNING: Duplicate content detected! Same content as file {file_hashes[content_hash]}")
+        else:
+            file_hashes[content_hash] = filename
     
     # Queue the upload task
     UPLOAD_QUEUE.put((task_id, files_data, title, description))
