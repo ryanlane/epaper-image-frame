@@ -2,9 +2,10 @@
 {% block title %}Home • E‑Ink Frame{% endblock %}
 
 {% block content %}
-<h1>Library</h1>
+
+
+{% if images %}
 <div class="row">
-  
   <div class="current">    
     <div class="current-image">
       <img id="currentPreview" src="/static/current.jpg" alt="Current Image"><br/>
@@ -13,11 +14,36 @@
   </div>
 </div>
 
+<h1>Library</h1>
 <div class="grid">
   {% for image in images %}
     {% include 'partials/_image_card.html' %}
   {% endfor %}
 </div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-content">
+    <div class="empty-icon">📸</div>
+    <h2>No Images Yet</h2>
+    <p>Your photo frame is empty! Get started by uploading some images to create your personal gallery.</p>
+    <div class="empty-actions">
+      <a href="/upload" class="upload-button">
+        <span class="upload-icon">⬆️</span>
+        Upload Your First Images
+      </a>
+    </div>
+    <div class="empty-tips">
+      <h3>💡 Tips:</h3>
+      <ul>
+        <li>Select multiple images at once for bulk upload</li>
+        <li>Use the crop tool to perfectly frame your photos</li>
+        <li>Enable slideshow mode to automatically update images</li>
+        <li>Toggle images on/off to control what appears in rotation</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <script>
 // Global settings

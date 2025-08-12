@@ -95,6 +95,7 @@ epaper-image-frame/
 ├── models.py                 # SQLAlchemy database models
 ├── migrate_db.py             # Initial database migration script
 ├── migrate_aspect_ratio.py   # Aspect ratio feature migration script
+├── cleanup_images.py         # Development tool for removing all images
 ├── requirements.txt          # Python dependencies
 ├── photo_frame.db            # SQLite database (created automatically)
 ├── static/
@@ -224,7 +225,44 @@ Each image can be individually configured:
 - **Manual Override**: "Play Now" button for immediate display
 - **Usage Tracking**: Monitor which images are displayed most frequently
 
-## 🐛 Development Mode
+## �️ Development Tools
+
+The project includes several utility scripts for development and maintenance:
+
+### Database Migrations
+- **`migrate_db.py`**: Initial database setup with crop functionality
+- **`migrate_aspect_ratio.py`**: Adds aspect ratio preservation feature
+
+### Image Cleanup Utility
+The `cleanup_images.py` script helps developers reset the image collection during testing:
+
+```bash
+# Check current status (non-destructive)
+python3 cleanup_images.py --status
+
+# Interactive cleanup with confirmation
+python3 cleanup_images.py
+
+# Show help
+python3 cleanup_images.py --help
+```
+
+**Features:**
+- **Safe by default**: Multiple confirmation prompts before deletion
+- **Comprehensive reporting**: Shows exactly what will be removed
+- **Status checking**: Non-destructive status reports
+- **Complete cleanup**: Removes database records AND files
+- **Development focused**: Perfect for testing and fresh starts
+
+**What it removes:**
+- All image records from the database
+- All files in the uploads directory
+- All files in the thumbnails directory  
+- The current display image (`static/current.jpg`)
+
+⚠️ **Warning**: This operation cannot be undone! Always use `--status` first to review what will be deleted.
+
+## �🐛 Development Mode
 
 For development and testing without physical e-ink hardware:
 
