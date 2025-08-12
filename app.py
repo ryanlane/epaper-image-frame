@@ -1,7 +1,8 @@
 import os, random, threading, time, queue, uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
+
 from fastapi import FastAPI, Request, UploadFile, File, Form, Depends, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -181,7 +182,10 @@ def upload_worker():
                 "progress": 0, 
                 "total": len(files_data),
                 "uploaded": 0,
-                "errors": []
+                "errors": [],
+                "started_at": datetime.now(),
+                "last_activity": datetime.now(),
+                "current_file": None
             }
             
             # Get database session
@@ -194,6 +198,9 @@ def upload_worker():
                     try:
                         # Update progress
                         UPLOAD_STATUS[task_id]["progress"] = i
+                        UPLOAD_STATUS[task_id]["current_file"] = filename
+                        UPLOAD_STATUS[task_id]["last_activity"] = datetime.now()
+                        print(f"[UPLOAD] Processing {i+1}/{len(files_data)}: {filename}")
                         
                         # Use filename as title if no default title provided
                         file_title = title if title.strip() else os.path.splitext(filename)[0]
@@ -205,12 +212,17 @@ def upload_worker():
                             'file': BytesIO(file_content)
                         })()
                         
+                        print(f"[UPLOAD] Saving file: {filename} ({len(file_content)} bytes)")
+                        UPLOAD_STATUS[task_id]["last_activity"] = datetime.now()
                         fname, w, h, exif_json = save_upload(file_obj, s.image_root, s.thumb_root)
+                        print(f"[UPLOAD] File saved as: {fname} ({w}x{h})")
                         
                         # Calculate smart default crop
+                        UPLOAD_STATUS[task_id]["last_activity"] = datetime.now()
                         crop_x, crop_y, crop_width, crop_height = calculate_smart_crop(w, h, s.resolution)
                         
                         # Add to database
+                        UPLOAD_STATUS[task_id]["last_activity"] = datetime.now()
                         max_order = db.query(Image).count()
                         img = Image(filename=fname, original_name=filename, title=file_title,
                                     description=description, exif_json=exif_json,
@@ -220,12 +232,15 @@ def upload_worker():
                         db.add(img)
                         uploaded_count += 1
                         UPLOAD_STATUS[task_id]["uploaded"] = uploaded_count
+                        UPLOAD_STATUS[task_id]["last_activity"] = datetime.now()
                         
-                        print(f"Successfully processed: {filename} (crop: {crop_x:.1f}%, {crop_y:.1f}%, {crop_width:.1f}%x{crop_height:.1f}%)")
+                        print(f"[UPLOAD] Successfully processed: {filename} (crop: {crop_x:.1f}%, {crop_y:.1f}%, {crop_width:.1f}%x{crop_height:.1f}%)")
                         
                     except Exception as e:
                         error_msg = f"Failed to upload {filename}: {str(e)}"
-                        print(error_msg)
+                        print(f"[UPLOAD] ERROR: {error_msg}")
+                        import traceback
+                        traceback.print_exc()
                         UPLOAD_STATUS[task_id]["errors"].append(error_msg)
                         continue
                 
@@ -234,13 +249,16 @@ def upload_worker():
                 # Mark as completed
                 UPLOAD_STATUS[task_id]["status"] = "completed"
                 UPLOAD_STATUS[task_id]["progress"] = len(files_data)
-                print(f"Upload task {task_id} completed: {uploaded_count} of {len(files_data)} images")
+                UPLOAD_STATUS[task_id]["current_file"] = None
+                print(f"[UPLOAD] Task {task_id} completed: {uploaded_count} of {len(files_data)} images")
                 
             except Exception as e:
                 db.rollback()
                 UPLOAD_STATUS[task_id]["status"] = "error"
                 UPLOAD_STATUS[task_id]["errors"].append(f"Database error: {str(e)}")
-                print(f"Upload task {task_id} failed: {e}")
+                print(f"[UPLOAD] Task {task_id} failed: {e}")
+                import traceback
+                traceback.print_exc()
             finally:
                 db.close()
                 UPLOAD_QUEUE.task_done()
@@ -330,16 +348,42 @@ async def upload(request: Request):
 
 @app.get("/upload/status/{task_id}")
 async def upload_status(task_id: str):
-    """Get the status of an upload task"""
+    """Get the status of an upload task with timeout detection"""
     if task_id not in UPLOAD_STATUS:
         raise HTTPException(status_code=404, detail="Upload task not found")
     
     status = UPLOAD_STATUS[task_id].copy()
     
+    # Check for timeout (uploads taking longer than 10 minutes)
+    if status["status"] == "processing" and "started_at" in status:
+        elapsed = datetime.now() - status["started_at"]
+        last_activity_elapsed = datetime.now() - status.get("last_activity", status["started_at"])
+        
+        # Total timeout: 10 minutes
+        if elapsed.total_seconds() > 600:
+            UPLOAD_STATUS[task_id]["status"] = "error"
+            UPLOAD_STATUS[task_id]["errors"].append("Upload timeout: Process took longer than 10 minutes")
+            UPLOAD_STATUS[task_id]["current_file"] = None
+            print(f"[UPLOAD] Task {task_id} timed out after {elapsed.total_seconds():.1f} seconds")
+            status = UPLOAD_STATUS[task_id].copy()
+        # Activity timeout: no progress for 2 minutes
+        elif last_activity_elapsed.total_seconds() > 120:
+            UPLOAD_STATUS[task_id]["status"] = "error"
+            UPLOAD_STATUS[task_id]["errors"].append("Upload stuck: No activity for more than 2 minutes")
+            UPLOAD_STATUS[task_id]["current_file"] = None
+            print(f"[UPLOAD] Task {task_id} stuck - no activity for {last_activity_elapsed.total_seconds():.1f} seconds")
+            status = UPLOAD_STATUS[task_id].copy()
+    
     # Clean up completed tasks older than 5 minutes
     if status["status"] in ["completed", "error"]:
         # You could add cleanup logic here if needed
         pass
+    
+    # Remove internal timestamps from response
+    if "started_at" in status:
+        del status["started_at"]
+    if "last_activity" in status:
+        del status["last_activity"]
     
     return JSONResponse(status)
 
