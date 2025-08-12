@@ -466,7 +466,7 @@ async def upload_test(request: Request):
 
 @app.post("/image/{id}/toggle")
 def toggle_enable(id: int, db: Session = Depends(get_db)):
-    img = db.query(Image).get(id)
+    img = db.get(Image, id)
     if not img: return JSONResponse({"error":"not found"}, status_code=404)
     img.enabled = not img.enabled
     db.commit()
@@ -483,7 +483,7 @@ def update_image(id: int,
                  crop_height: float = Form(None),
                  preserve_aspect_ratio: bool = Form(False),
                  db: Session = Depends(get_db)):
-    img = db.query(Image).get(id)
+    img = db.get(Image, id)
     if not img: return JSONResponse({"error":"not found"}, status_code=404)
     img.title = title; img.description = description
     if sort_order is not None: img.sort_order = sort_order
@@ -497,7 +497,7 @@ def update_image(id: int,
 @app.post("/image/{id}/delete")
 def delete_image(id: int, db: Session = Depends(get_db)):
     s = db.query(Settings).first()
-    img = db.query(Image).get(id)
+    img = db.get(Image, id)
     if not img: return JSONResponse({"error":"not found"}, status_code=404)
     # remove files
     for root in (s.image_root, s.thumb_root):
@@ -581,7 +581,7 @@ def recalculate_crops(db: Session = Depends(get_db)):
 @app.post("/show-now/{id}")
 def show_now(id: int, db: Session = Depends(get_db)):
     s = db.query(Settings).first()
-    img = db.query(Image).get(id)
+    img = db.get(Image, id)
     if not img: return JSONResponse({"error":"not found"}, status_code=404)
     
     src = os.path.join(s.image_root, img.filename)
