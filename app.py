@@ -1,4 +1,5 @@
-import os, random, threading, time
+import os, random, threading, time, queue
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import List
 from fastapi import FastAPI, Request, UploadFile, File, Form, Depends, HTTPException
@@ -12,7 +13,69 @@ from models import Settings, Image
 from utils import eframe_inky
 from utils.image_utils import save_upload, render_to_output, ensure_dirs
 
-app = FastAPI()
+def calculate_smart_crop(image_width, image_height, display_resolution):
+    """
+    Calculate smart default crop that centers the image if it needs cropping.
+    Returns (crop_x, crop_y, crop_width, crop_height) as percentages.
+    """
+    if not display_resolution or ',' not in display_resolution:
+        # Fallback to full image if no valid resolution
+        return 0, 0, 100, 100
+    
+    try:
+        display_width, display_height = map(int, display_resolution.split(','))
+        display_aspect = display_width / display_height
+        image_aspect = image_width / image_height
+        
+        if abs(display_aspect - image_aspect) < 0.01:
+            # Aspect ratios are very close, use full image
+            return 0, 0, 100, 100
+        
+        if image_aspect > display_aspect:
+            # Image is wider than display - crop horizontally, center left-right
+            crop_height = 100  # Use full height
+            crop_width = (display_aspect / image_aspect) * 100
+            crop_x = (100 - crop_width) / 2  # Center horizontally
+            crop_y = 0
+        else:
+            # Image is taller than display - crop vertically, center top-bottom  
+            crop_width = 100  # Use full width
+            crop_height = (image_aspect / display_aspect) * 100
+            crop_x = 0
+            crop_y = (100 - crop_height) / 2  # Center vertically
+        
+        # Round to 2 decimal places
+        return round(crop_x, 2), round(crop_y, 2), round(crop_width, 2), round(crop_height, 2)
+        
+    except (ValueError, ZeroDivisionError):
+        # Fallback to full image on any calculation error
+        return 0, 0, 100, 100
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    init_db()
+    with SessionLocal() as db:
+        s = db.query(Settings).first()
+        if not s:
+            s = Settings()
+            db.add(s); db.commit()
+        ensure_dirs(s.image_root, s.thumb_root, os.path.dirname("static/current.jpg"))
+    
+    # Start background threads
+    start_display_worker()
+    start_slideshow()
+    
+    yield
+    
+    # Shutdown
+    print("[SHUTDOWN] Stopping background threads...")
+    stop_display_worker()
+    SLIDESHOW_THREAD["stop"] = True
+    if SLIDESHOW_THREAD["t"] and SLIDESHOW_THREAD["t"].is_alive():
+        SLIDESHOW_THREAD["t"].join(timeout=5)
+
+app = FastAPI(lifespan=lifespan)
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -21,19 +84,70 @@ def get_db():
     try: yield db
     finally: db.close()
 
+# Global display queue and thread management
+DISPLAY_QUEUE = queue.Queue()
+DISPLAY_THREAD = {"t": None, "stop": False}
 SLIDESHOW_THREAD = {"t": None, "stop": False}
 
-@app.on_event("startup")
-def startup():
-    init_db()
-    with SessionLocal() as db:
-        s = db.query(Settings).first()
-        if not s:
-            s = Settings()
-            db.add(s); db.commit()
-        ensure_dirs(s.image_root, s.thumb_root, os.path.dirname("static/current.jpg"))
-    # kick slideshow thread
-    start_slideshow()
+def display_worker():
+    """Worker thread that processes display queue in background"""
+    while not DISPLAY_THREAD["stop"]:
+        try:
+            # Wait for display request with timeout
+            display_request = DISPLAY_QUEUE.get(timeout=1)
+            if display_request is None:  # Shutdown signal
+                break
+                
+            image_path, image_id = display_request
+            print(f"[DISPLAY] Processing: {image_path}")
+            
+            # This is the potentially slow operation
+            eframe_inky.show_on_inky(image_path)
+            
+            # Update database stats in background
+            if image_id:
+                try:
+                    with SessionLocal() as db:
+                        img = db.get(Image, image_id)
+                        if img:
+                            img.times_shown += 1
+                            img.last_shown_at = datetime.now(timezone.utc)
+                            db.commit()
+                except Exception as e:
+                    print(f"Error updating display stats: {e}")
+                    
+            DISPLAY_QUEUE.task_done()
+            
+        except queue.Empty:
+            continue  # Check stop flag and try again
+        except Exception as e:
+            print(f"Display worker error: {e}")
+
+def queue_display(image_path, image_id=None):
+    """Queue an image for display on the e-ink screen"""
+    try:
+        DISPLAY_QUEUE.put((image_path, image_id), block=False)
+        print(f"[DISPLAY] Queued: {image_path}")
+        return True
+    except queue.Full:
+        print("[DISPLAY] Warning: Display queue is full, skipping")
+        return False
+
+def start_display_worker():
+    """Start the background display worker thread"""
+    if DISPLAY_THREAD["t"] is None or not DISPLAY_THREAD["t"].is_alive():
+        DISPLAY_THREAD["stop"] = False
+        DISPLAY_THREAD["t"] = threading.Thread(target=display_worker, daemon=True)
+        DISPLAY_THREAD["t"].start()
+        print("[DISPLAY] Worker thread started")
+
+def stop_display_worker():
+    """Stop the background display worker thread"""
+    DISPLAY_THREAD["stop"] = True
+    DISPLAY_QUEUE.put(None)  # Signal shutdown
+    if DISPLAY_THREAD["t"] and DISPLAY_THREAD["t"].is_alive():
+        DISPLAY_THREAD["t"].join(timeout=5)
+        print("[DISPLAY] Worker thread stopped")
 
 @app.get("/", name="home")
 def index(request: Request, db: Session = Depends(get_db)):
@@ -77,14 +191,20 @@ async def upload(request: Request, db: Session = Depends(get_db)):
                 file_title = title if title.strip() else os.path.splitext(file.filename)[0]
                 
                 fname, w, h, exif_json = save_upload(file, s.image_root, s.thumb_root)
+                
+                # Calculate smart default crop based on image and display aspect ratios
+                crop_x, crop_y, crop_width, crop_height = calculate_smart_crop(w, h, s.resolution)
+                
                 # sort_order = max + 1
                 max_order = db.query(Image).count()
                 img = Image(filename=fname, original_name=file.filename, title=file_title,
                             description=description, exif_json=exif_json,
-                            width=w, height=h, sort_order=max_order+1)
+                            width=w, height=h, sort_order=max_order+1,
+                            crop_x=crop_x, crop_y=crop_y, 
+                            crop_width=crop_width, crop_height=crop_height)
                 db.add(img)
                 uploaded_count += 1
-                print(f"Successfully processed: {file.filename}")
+                print(f"Successfully processed: {file.filename} (crop: {crop_x:.1f}%, {crop_y:.1f}%, {crop_width:.1f}%x{crop_height:.1f}%)")
             except Exception as e:
                 print(f"Failed to upload {file.filename}: {e}")
                 import traceback
@@ -123,6 +243,7 @@ def update_image(id: int,
                  crop_y: float = Form(None),
                  crop_width: float = Form(None),
                  crop_height: float = Form(None),
+                 preserve_aspect_ratio: bool = Form(False),
                  db: Session = Depends(get_db)):
     img = db.query(Image).get(id)
     if not img: return JSONResponse({"error":"not found"}, status_code=404)
@@ -132,6 +253,7 @@ def update_image(id: int,
     if crop_y is not None: img.crop_y = crop_y
     if crop_width is not None: img.crop_width = crop_width
     if crop_height is not None: img.crop_height = crop_height
+    img.preserve_aspect_ratio = preserve_aspect_ratio
     db.commit(); return {"ok": True}
 
 @app.post("/image/{id}/delete")
@@ -178,19 +300,59 @@ def update_settings(
     db.commit()
     return RedirectResponse("/settings", status_code=303)
 
+@app.post("/recalculate-crops")
+def recalculate_crops(db: Session = Depends(get_db)):
+    """
+    Recalculate smart crop defaults for existing images that use full-frame crops.
+    Useful for applying smart defaults to images uploaded before this feature.
+    """
+    s = db.query(Settings).first()
+    if not s or not s.resolution:
+        return JSONResponse({"error": "No display resolution configured"}, status_code=400)
+    
+    # Find images that are using default full-frame crop (likely uploaded before smart crops)
+    images = db.query(Image).filter(
+        Image.crop_x == 0,
+        Image.crop_y == 0, 
+        Image.crop_width == 100,
+        Image.crop_height == 100
+    ).all()
+    
+    updated_count = 0
+    for img in images:
+        if img.width and img.height:
+            crop_x, crop_y, crop_width, crop_height = calculate_smart_crop(
+                img.width, img.height, s.resolution
+            )
+            
+            # Only update if the smart crop is different from current (not already perfect aspect ratio)
+            if not (crop_x == 0 and crop_y == 0 and crop_width == 100 and crop_height == 100):
+                img.crop_x = crop_x
+                img.crop_y = crop_y
+                img.crop_width = crop_width
+                img.crop_height = crop_height
+                updated_count += 1
+    
+    db.commit()
+    return {"updated_count": updated_count, "total_checked": len(images)}
+
 @app.post("/show-now/{id}")
 def show_now(id: int, db: Session = Depends(get_db)):
     s = db.query(Settings).first()
     img = db.query(Image).get(id)
     if not img: return JSONResponse({"error":"not found"}, status_code=404)
+    
     src = os.path.join(s.image_root, img.filename)
     render_to_output(src, "static/current.jpg", s.resolution, 
                     img.crop_x or 0, img.crop_y or 0, 
-                    img.crop_width or 100, img.crop_height or 100)
-    eframe_inky.show_on_inky("static/current.jpg")
-    img.times_shown += 1
-    db.commit()
-    return {"ok": True}
+                    img.crop_width or 100, img.crop_height or 100,
+                    img.preserve_aspect_ratio or False)
+    
+    # Queue the display update (non-blocking)
+    queue_display("static/current.jpg", img.id)
+    
+    # Return immediately - display will happen in background
+    return {"ok": True, "queued": True}
 
 def pick_next(db: Session, s: Settings) -> Image | None:
     q = db.query(Image).filter(Image.enabled == True)
@@ -240,11 +402,12 @@ def slideshow_loop():
                         render_to_output(os.path.join(s.image_root, img.filename),
                                          "static/current.jpg", s.resolution,
                                          img.crop_x or 0, img.crop_y or 0, 
-                                         img.crop_width or 100, img.crop_height or 100)
-                        eframe_inky.show_on_inky("static/current.jpg")
-                        img.times_shown += 1
-                        img.last_shown_at = datetime.now(timezone.utc)
-                        db.commit()
+                                         img.crop_width or 100, img.crop_height or 100,
+                                         img.preserve_aspect_ratio or False)
+                        
+                        # Queue the display update (non-blocking)
+                        queue_display("static/current.jpg", img.id)
+                        
         except Exception as e:
             print("Slideshow error:", e)
             interval_seconds = 10  # back off briefly on error

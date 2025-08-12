@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float
 from sqlalchemy.sql import func
 from sqlalchemy.orm import declarative_base
 
@@ -30,7 +30,9 @@ class Image(Base):
     last_shown_at = Column(DateTime)
     created_at = Column(DateTime, server_default=func.now())
     # Crop settings as percentages (0-100) of original image
-    crop_x = Column(Integer, default=0)  # left offset %
-    crop_y = Column(Integer, default=0)  # top offset %
-    crop_width = Column(Integer, default=100)  # width %
-    crop_height = Column(Integer, default=100)  # height %
+    crop_x = Column(Float, default=0.0)  # left offset %
+    crop_y = Column(Float, default=0.0)  # top offset %
+    crop_width = Column(Float, default=100.0)  # width %
+    crop_height = Column(Float, default=100.0)  # height %
+    # Aspect ratio preservation option
+    preserve_aspect_ratio = Column(Boolean, default=False)  # True = letterbox, False = crop-to-fill

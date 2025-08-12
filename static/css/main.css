@@ -166,6 +166,34 @@ main {
     margin-top: 0.5rem;
 }
 
+.aspect-ratio-option {
+    margin: 1rem 0;
+    padding: 0.5rem;
+    border: 1px solid #666;
+    border-radius: 4px;
+    background: #2a2a2a;
+}
+
+.aspect-ratio-option-control {
+
+    margin-bottom: 0.25rem;
+}
+
+.aspect-ratio-option label {
+    cursor: pointer;
+}
+
+.aspect-ratio-option input[type="checkbox"] {
+    transform: scale(1.75);
+    margin-right: 0.5rem;
+}
+
+.aspect-ratio-option .aspect-help {
+    font-size: 0.75rem;
+    color: #aaa;
+    line-height: 1.3;
+}
+
 .crop-container {
     position: relative;
     display: inline-block;

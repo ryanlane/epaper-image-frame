@@ -6,8 +6,21 @@
       <input type="text" id="title-input-{{ image.id }}" value="{{ image.title or image.original_name }}" placeholder="Image title">
       <textarea id="desc-input-{{ image.id }}" placeholder="Description">{{ image.description }}</textarea>
       
+      <!-- Aspect ratio preservation option -->
+      <div class="aspect-ratio-option">
+        <div class="aspect-ratio-option-control">
+        
+          <input type="checkbox" id="preserve-aspect-{{ image.id }}" 
+                 {{ 'checked' if image.preserve_aspect_ratio else '' }}
+                 onchange="toggleAspectRatioMode('{{ image.id }}')">
+          <label for="preserve-aspect-{{ image.id }}">Preserve original aspect ratio</label>
+        </div>
+        <small class="aspect-help">When checked, image keeps original proportions with black borders. When unchecked, image fills display by cropping.</small>
+      </div>
+      
       <!-- Crop controls -->
-      <div class="crop-controls">
+      <div class="crop-controls" id="crop-controls-{{ image.id }}" 
+           style="{{ 'opacity: 0.5; pointer-events: none;' if image.preserve_aspect_ratio else '' }}">
         <div class="crop-header" onclick="toggleCropSettings('{{ image.id }}')">
           <span>Crop Settings</span>
           <span class="crop-toggle" id="crop-toggle-{{ image.id }}">▼</span>

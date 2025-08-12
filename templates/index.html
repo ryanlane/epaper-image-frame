@@ -68,6 +68,7 @@ document.addEventListener('click', async (e) => {
     const cropY = document.getElementById(`crop-y-${id}`).value;
     const cropWidth = document.getElementById(`crop-width-${id}`).value;
     const cropHeight = document.getElementById(`crop-height-${id}`).value;
+    const preserveAspectRatio = document.getElementById(`preserve-aspect-${id}`).checked;
     
     try {
       const formData = new FormData();
@@ -77,6 +78,7 @@ document.addEventListener('click', async (e) => {
       formData.append('crop_y', cropY);
       formData.append('crop_width', cropWidth);
       formData.append('crop_height', cropHeight);
+      formData.append('preserve_aspect_ratio', preserveAspectRatio);
       
       const res = await fetch(`/image/${id}/update`, { 
         method: 'POST',
@@ -388,6 +390,22 @@ function toggleCropSettings(imageId) {
   } else {
     content.style.display = 'none';
     toggle.textContent = '▼';
+  }
+}
+
+// Toggle aspect ratio preservation mode
+function toggleAspectRatioMode(imageId) {
+  const preserveAspect = document.getElementById(`preserve-aspect-${imageId}`).checked;
+  const cropControls = document.getElementById(`crop-controls-${imageId}`);
+  
+  if (preserveAspect) {
+    // Disable crop controls when preserving aspect ratio
+    cropControls.style.opacity = '0.5';
+    cropControls.style.pointerEvents = 'none';
+  } else {
+    // Enable crop controls when crop-to-fill is selected
+    cropControls.style.opacity = '';
+    cropControls.style.pointerEvents = '';
   }
 }
 </script>

@@ -73,9 +73,16 @@ def save_upload(fileobj, upload_dir: str, thumb_dir: str) -> tuple[str, int, int
 
     return safe_name, w, h, exif_json
 
-def render_to_output(src_path: str, output_path: str, resolution: str, crop_x: int = 0, crop_y: int = 0, crop_width: int = 100, crop_height: int = 100):
+def render_to_output(src_path: str, output_path: str, resolution: str, crop_x: int = 0, crop_y: int = 0, crop_width: int = 100, crop_height: int = 100, preserve_aspect_ratio: bool = False):
     w, h = [int(x) for x in resolution.split(",")]
     img = Image.open(src_path).convert("RGB")
-    framed = crop_and_fill(img, w, h, crop_x, crop_y, crop_width, crop_height)
+    
+    if preserve_aspect_ratio:
+        # Use letterboxing to preserve original aspect ratio
+        framed = letterbox_to(img, w, h)
+    else:
+        # Use crop-and-fill for full coverage
+        framed = crop_and_fill(img, w, h, crop_x, crop_y, crop_width, crop_height)
+    
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     framed.save(output_path, "JPEG", quality=90)
