@@ -250,6 +250,16 @@ main {
     min-width: 20px;
     min-height: 20px;
     box-sizing: border-box;
+    transition: all 0.2s ease;
+}
+
+.crop-selector:hover {
+    background: rgba(255, 102, 0, 0.2);
+    border-color: #ff8833;
+}
+
+.crop-selector:active {
+    background: rgba(255, 102, 0, 0.3);
 }
 
 .crop-handle {
@@ -260,6 +270,56 @@ main {
     border: 2px solid #fff;
     border-radius: 50%;
     cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.crop-handle:hover,
+.crop-handle:active {
+    background: #ff8833;
+    transform: scale(1.2);
+}
+
+/* Touch feedback for mobile */
+@media (pointer: coarse) {
+    .crop-handle:active {
+        background: #ff8833;
+        transform: scale(1.3);
+    }
+}
+
+/* Larger touch targets on mobile */
+@media (max-width: 768px) {
+    .crop-handle {
+        width: 20px;
+        height: 20px;
+        border-width: 3px;
+    }
+    
+    .crop-handle-nw {
+        top: -12px;
+        left: -12px;
+    }
+    
+    .crop-handle-ne {
+        top: -12px;
+        right: -12px;
+    }
+    
+    .crop-handle-sw {
+        bottom: -12px;
+        left: -12px;
+    }
+    
+    .crop-handle-se {
+        bottom: -12px;
+        right: -12px;
+    }
+    
+    .crop-selector {
+        border-width: 3px;
+        min-width: 40px;
+        min-height: 40px;
+    }
 }
 
 .crop-handle-nw {
@@ -289,6 +349,25 @@ main {
 .crop-info {
     font-size: 0.8rem;
     color: #ccc;
+}
+
+.crop-instructions-mobile {
+    display: none;
+}
+
+.crop-instructions-desktop {
+    display: inline;
+}
+
+/* Show mobile instructions on touch devices */
+@media (pointer: coarse) {
+    .crop-instructions-mobile {
+        display: inline;
+    }
+    
+    .crop-instructions-desktop {
+        display: none;
+    }
 }
 
 .crop-values {

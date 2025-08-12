@@ -294,7 +294,7 @@ function setupCropDragHandlers(imageId) {
   
   if (!cropSelector || !cropContainer) return;
   
-  // Main crop area dragging
+  // Main crop area dragging - mouse events
   cropSelector.addEventListener('mousedown', (e) => {
     if (e.target.classList.contains('crop-handle')) return; // Don't drag if clicking on handle
     
@@ -309,7 +309,23 @@ function setupCropDragHandlers(imageId) {
     e.preventDefault();
   });
   
-  // Handle resizing
+  // Main crop area dragging - touch events
+  cropSelector.addEventListener('touchstart', (e) => {
+    if (e.target.classList.contains('crop-handle')) return; // Don't drag if touching handle
+    
+    isDragging = true;
+    const touch = e.touches[0];
+    dragStartX = touch.clientX;
+    dragStartY = touch.clientY;
+    
+    const rect = cropSelector.getBoundingClientRect();
+    cropStartLeft = rect.left;
+    cropStartTop = rect.top;
+    
+    e.preventDefault();
+  });
+  
+  // Handle resizing - mouse events
   const handles = cropSelector.querySelectorAll('.crop-handle');
   handles.forEach(handle => {
     handle.addEventListener('mousedown', (e) => {
@@ -318,6 +334,25 @@ function setupCropDragHandlers(imageId) {
       
       dragStartX = e.clientX;
       dragStartY = e.clientY;
+      
+      const rect = cropSelector.getBoundingClientRect();
+      cropStartLeft = rect.left;
+      cropStartTop = rect.top;
+      cropStartWidth = rect.width;
+      cropStartHeight = rect.height;
+      
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    
+    // Handle resizing - touch events
+    handle.addEventListener('touchstart', (e) => {
+      isResizing = true;
+      isDragging = false;
+      
+      const touch = e.touches[0];
+      dragStartX = touch.clientX;
+      dragStartY = touch.clientY;
       
       const rect = cropSelector.getBoundingClientRect();
       cropStartLeft = rect.left;
@@ -357,40 +392,138 @@ function setupCropDragHandlers(imageId) {
       updateCropValues(imageId, leftPercent, topPercent, null, null);
       
     } else if (isResizing) {
-      // Resize the crop selector
+      // Resize the crop selector with proper aspect ratio constraints
       let newWidth = cropStartWidth + deltaX;
       let newHeight = cropStartHeight + deltaY;
       
-      // Maintain aspect ratio
-      const targetAspectRatio = displayAspectRatio;
-      const currentAspectRatio = newWidth / newHeight;
+      // Get current position for boundary calculations
+      const currentLeft = cropStartLeft - containerRect.left;
+      const currentTop = cropStartTop - containerRect.top;
       
-      if (currentAspectRatio > targetAspectRatio) {
-        newWidth = newHeight * targetAspectRatio;
-      } else {
-        newHeight = newWidth / targetAspectRatio;
-      }
+      // Calculate maximum possible dimensions based on container bounds
+      const maxWidth = containerRect.width - currentLeft;
+      const maxHeight = containerRect.height - currentTop;
       
-      // Ensure minimum size
+      // Apply minimum size constraints first
       newWidth = Math.max(50, newWidth);
       newHeight = Math.max(30, newHeight);
       
-      // Ensure doesn't exceed container
-      const maxWidth = containerRect.width - (cropStartLeft - containerRect.left);
-      const maxHeight = containerRect.height - (cropStartTop - containerRect.top);
+      // Maintain aspect ratio while respecting bounds
+      const targetAspectRatio = displayAspectRatio;
       
-      newWidth = Math.min(newWidth, maxWidth);
-      newHeight = Math.min(newHeight, maxHeight);
+      // Try width-constrained approach first
+      let constrainedWidth = Math.min(newWidth, maxWidth);
+      let constrainedHeight = constrainedWidth / targetAspectRatio;
       
-      const widthPercent = (newWidth / containerRect.width) * 100;
-      const heightPercent = (newHeight / containerRect.height) * 100;
+      // If height exceeds bounds, switch to height-constrained approach
+      if (constrainedHeight > maxHeight) {
+        constrainedHeight = Math.min(newHeight, maxHeight);
+        constrainedWidth = constrainedHeight * targetAspectRatio;
+      }
+      
+      // Final check - ensure both dimensions fit
+      constrainedWidth = Math.min(constrainedWidth, maxWidth);
+      constrainedHeight = Math.min(constrainedHeight, maxHeight);
+      
+      // Ensure we maintain minimum sizes after constraints
+      if (constrainedWidth < 50 || constrainedHeight < 30) {
+        // If we can't maintain minimums, keep current size
+        constrainedWidth = cropStartWidth;
+        constrainedHeight = cropStartHeight;
+      }
+      
+      const widthPercent = (constrainedWidth / containerRect.width) * 100;
+      const heightPercent = (constrainedHeight / containerRect.height) * 100;
       
       updateCropValues(imageId, null, null, widthPercent, heightPercent);
     }
   });
   
+  // Touch move handler
+  document.addEventListener('touchmove', (e) => {
+    if (!isDragging && !isResizing) return;
+    if (currentCropId !== imageId) return;
+    
+    const touch = e.touches[0];
+    const containerRect = cropContainer.getBoundingClientRect();
+    const deltaX = touch.clientX - dragStartX;
+    const deltaY = touch.clientY - dragStartY;
+    
+    if (isDragging) {
+      // Move the crop selector
+      let newLeft = cropStartLeft + deltaX - containerRect.left;
+      let newTop = cropStartTop + deltaY - containerRect.top;
+      
+      const selectorRect = cropSelector.getBoundingClientRect();
+      const maxLeft = containerRect.width - selectorRect.width;
+      const maxTop = containerRect.height - selectorRect.height;
+      
+      newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+      newTop = Math.max(0, Math.min(newTop, maxTop));
+      
+      const leftPercent = (newLeft / containerRect.width) * 100;
+      const topPercent = (newTop / containerRect.height) * 100;
+      
+      updateCropValues(imageId, leftPercent, topPercent, null, null);
+      
+    } else if (isResizing) {
+      // Resize the crop selector with proper aspect ratio constraints
+      let newWidth = cropStartWidth + deltaX;
+      let newHeight = cropStartHeight + deltaY;
+      
+      // Get current position for boundary calculations
+      const currentLeft = cropStartLeft - containerRect.left;
+      const currentTop = cropStartTop - containerRect.top;
+      
+      // Calculate maximum possible dimensions based on container bounds
+      const maxWidth = containerRect.width - currentLeft;
+      const maxHeight = containerRect.height - currentTop;
+      
+      // Apply minimum size constraints first
+      newWidth = Math.max(50, newWidth);
+      newHeight = Math.max(30, newHeight);
+      
+      // Maintain aspect ratio while respecting bounds
+      const targetAspectRatio = displayAspectRatio;
+      
+      // Try width-constrained approach first
+      let constrainedWidth = Math.min(newWidth, maxWidth);
+      let constrainedHeight = constrainedWidth / targetAspectRatio;
+      
+      // If height exceeds bounds, switch to height-constrained approach
+      if (constrainedHeight > maxHeight) {
+        constrainedHeight = Math.min(newHeight, maxHeight);
+        constrainedWidth = constrainedHeight * targetAspectRatio;
+      }
+      
+      // Final check - ensure both dimensions fit
+      constrainedWidth = Math.min(constrainedWidth, maxWidth);
+      constrainedHeight = Math.min(constrainedHeight, maxHeight);
+      
+      // Ensure we maintain minimum sizes after constraints
+      if (constrainedWidth < 50 || constrainedHeight < 30) {
+        // If we can't maintain minimums, keep current size
+        constrainedWidth = cropStartWidth;
+        constrainedHeight = cropStartHeight;
+      }
+      
+      const widthPercent = (constrainedWidth / containerRect.width) * 100;
+      const heightPercent = (constrainedHeight / containerRect.height) * 100;
+      
+      updateCropValues(imageId, null, null, widthPercent, heightPercent);
+    }
+    
+    e.preventDefault(); // Prevent page scrolling during crop operations
+  });
+  
   // Mouse up handler
   document.addEventListener('mouseup', () => {
+    isDragging = false;
+    isResizing = false;
+  });
+  
+  // Touch end handler
+  document.addEventListener('touchend', () => {
     isDragging = false;
     isResizing = false;
   });

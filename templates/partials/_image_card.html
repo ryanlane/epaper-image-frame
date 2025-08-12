@@ -36,7 +36,8 @@
             </div>
           </div>
           <div class="crop-info">
-            <span>Drag to select crop area. Aspect ratio locked to display settings.</span>
+            <span class="crop-instructions-desktop">Drag to select crop area. Aspect ratio locked to display settings.</span>
+            <span class="crop-instructions-mobile">Touch and drag to select crop area. Use corner handles to resize.</span>
             <div class="crop-values">
               Position: <span id="crop-display-{{ image.id }}">{{ image.crop_x or 0 }}%, {{ image.crop_y or 0 }}%</span> | 
               Size: <span id="crop-size-{{ image.id }}">{{ image.crop_width or 100 }}% × {{ image.crop_height or 100 }}%</span>
