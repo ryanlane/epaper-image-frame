@@ -3,7 +3,35 @@
 <!-- Add a hero image here when ready -->
 <!-- ![E-Paper Frame Setup](docs/images/hero-image.jpg) -->
 
-A web-based digital photo frame application designed for e-ink displays, featuring intelligent image cropping, slideshow functionality, and an intuitive web interface for managing your photo collection.
+A web-based digital photo frame application designed for e-ink displays, featuring intelligent image cropping, slideshow functionality, an## 🐛 Development Mode
+
+The application supports development mode for testing without physical e-ink hardware:
+
+### Configuration
+Create a `.env` file in the project root to control the environment:
+
+```bash
+# Development mode (shows dev banner, no hardware access)
+ENVIRONMENT=development
+# or
+ENVIRONMENT=dev
+
+# Production mode (attempts hardware access)
+ENVIRONMENT=production
+```
+
+### Development Mode Features
+- **Automatic detection** when Inky library is unavailable
+- **Console logging** instead of display output  
+- **Full web interface** functionality preserved
+- **Dev mode banner** displayed in web interface
+- **No hardware requirements** for testing
+
+### Environment Variable Support
+The application uses `python-dotenv` to load environment variables from the `.env` file. The dev mode determination is consistent across:
+- Web interface dev mode banner
+- Hardware detection and simulation
+- Display worker behavioruitive web interface for managing your photo collection.
 
 <!-- Add feature showcase images -->
 ## 📸 Screenshots
@@ -68,22 +96,27 @@ A web-based digital photo frame application designed for e-ink displays, featuri
    pip install -r requirements.txt
    ```
 
-3. **Initialize the database**
+3. **Configure environment** (create `.env` file)
+   ```bash
+   echo "ENVIRONMENT=development" > .env
+   ```
+
+4. **Initialize the database**
    ```bash
    python migrate_db.py
    ```
 
-4. **Run any additional migrations** (if upgrading from an older version)
+5. **Run any additional migrations** (if upgrading from an older version)
    ```bash
    python migrate_aspect_ratio.py
    ```
 
-5. **Start the application**
+6. **Start the application**
    ```bash
    python app.py
    ```
 
-6. **Access the web interface**
+7. **Access the web interface**
    Open your browser to `http://localhost:8080`
 
 ## 📁 Project Structure
@@ -96,6 +129,7 @@ epaper-image-frame/
 ├── migrate_db.py             # Initial database migration script
 ├── migrate_aspect_ratio.py   # Aspect ratio feature migration script
 ├── cleanup_images.py         # Development tool for removing all images
+├── .env                      # Environment configuration (create this file)
 ├── requirements.txt          # Python dependencies
 ├── photo_frame.db            # SQLite database (created automatically)
 ├── static/

@@ -8,10 +8,19 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import case
+from dotenv import load_dotenv
 from database import SessionLocal, init_db
 from models import Settings, Image
 from utils import eframe_inky
 from utils.image_utils import save_upload, render_to_output, ensure_dirs
+
+# Load environment variables from .env file
+load_dotenv()
+
+def is_dev_mode():
+    """Check if application is running in development mode based on environment variable"""
+    env = os.getenv('ENVIRONMENT', '').lower()
+    return env in ('development', 'dev')
 
 def calculate_smart_crop(image_width, image_height, display_resolution):
     """
@@ -265,12 +274,15 @@ def index(request: Request, db: Session = Depends(get_db)):
         "request": request, 
         "images": imgs, 
         "settings": settings,
-        "dev_mode": True  # Pass dev mode info
+        "dev_mode": is_dev_mode()
     })
 
 @app.get("/upload", name="upload")
 def upload_form(request: Request):
-    return templates.TemplateResponse("upload.html", {"request": request})
+    return templates.TemplateResponse("upload.html", {
+        "request": request,
+        "dev_mode": is_dev_mode()
+    })
 
 @app.post("/upload")
 async def upload(request: Request):
@@ -386,7 +398,11 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     s = db.query(Settings).first()
     if not s:
         raise HTTPException(500, "Settings row missing")
-    return templates.TemplateResponse("settings.html", {"request": request, "settings": s})
+    return templates.TemplateResponse("settings.html", {
+        "request": request, 
+        "settings": s,
+        "dev_mode": is_dev_mode()
+    })
 
 # app.py – REPLACE the existing /settings handler with this:
 @app.post("/settings", name="settings")

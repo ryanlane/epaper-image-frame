@@ -3,7 +3,13 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-use_fake = os.getenv("ENVIRONMENT") == "development"
+
+def is_dev_mode():
+    """Check if application is running in development mode based on environment variable"""
+    env = os.getenv('ENVIRONMENT', '').lower()
+    return env in ('development', 'dev')
+
+use_fake = is_dev_mode()
 
 inky = None
 if not use_fake:
