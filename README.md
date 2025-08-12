@@ -44,7 +44,8 @@ A web-based digital photo frame application designed for e-ink displays, featuri
 
 ### Advanced Features
 - **Developer Mode**: Test without physical e-ink display
-- **Crop-Fill Rendering**: Eliminates letterboxing by intelligently cropping to fit
+- **Dual Rendering Modes**: Choose between crop-to-fill or letterbox (preserve aspect ratio)
+- **Aspect Ratio Preservation**: Optional letterboxing to maintain original image proportions
 - **Cache Busting**: Automatic image refresh for immediate visual feedback
 - **Mobile Responsive**: Works seamlessly on phones, tablets, and desktops
 
@@ -72,34 +73,40 @@ A web-based digital photo frame application designed for e-ink displays, featuri
    python migrate_db.py
    ```
 
-4. **Start the application**
+4. **Run any additional migrations** (if upgrading from an older version)
+   ```bash
+   python migrate_aspect_ratio.py
+   ```
+
+5. **Start the application**
    ```bash
    python app.py
    ```
 
-5. **Access the web interface**
+6. **Access the web interface**
    Open your browser to `http://localhost:8080`
 
 ## 📁 Project Structure
 
 ```
 epaper-image-frame/
-├── app.py                # Main FastAPI application
-├── database.py           # Database configuration and setup
-├── models.py             # SQLAlchemy database models
-├── migrate_db.py         # Database migration script
-├── requirements.txt      # Python dependencies
-├── photo_frame.db        # SQLite database (created automatically)
+├── app.py                    # Main FastAPI application
+├── database.py               # Database configuration and setup
+├── models.py                 # SQLAlchemy database models
+├── migrate_db.py             # Initial database migration script
+├── migrate_aspect_ratio.py   # Aspect ratio feature migration script
+├── requirements.txt          # Python dependencies
+├── photo_frame.db            # SQLite database (created automatically)
 ├── static/
-│   ├── css/             # Stylesheets
-│   ├── uploads/         # Full-size uploaded images
-│   ├── thumbs/          # Generated thumbnails
-│   └── current.jpg      # Currently displayed image
-├── templates/           # Jinja2 HTML templates
-│   └── partials/        # Reusable template components
+│   ├── css/                 # Stylesheets
+│   ├── uploads/             # Full-size uploaded images
+│   ├── thumbs/              # Generated thumbnails
+│   └── current.jpg          # Currently displayed image
+├── templates/               # Jinja2 HTML templates
+│   └── partials/            # Reusable template components
 └── utils/
-    ├── eframe_inky.py   # E-ink display interface
-    └── image_utils.py   # Image processing utilities
+    ├── eframe_inky.py       # E-ink display interface
+    └── image_utils.py       # Image processing utilities
 ```
 
 ## 🖥️ Usage Guide
@@ -112,10 +119,13 @@ epaper-image-frame/
 ### Editing Images
 1. Click the **✏️ Edit** button on any image card
 2. Modify title and description as needed
-3. Click **"Crop Settings ▼"** to expand the crop editor
-4. Drag the orange rectangle to select the crop area
-5. Resize using the corner handles (aspect ratio locked to display)
-6. Click **"Save"** to apply changes
+3. **Choose display mode**: Check/uncheck "Preserve original aspect ratio"
+   - **Unchecked (Default)**: Crop-to-fill mode - image fills entire display
+   - **Checked**: Letterbox mode - maintains aspect ratio with black borders
+4. Click **"Crop Settings ▼"** to expand the crop editor (disabled in letterbox mode)
+5. Drag the orange rectangle to select the crop area
+6. Resize using the corner handles (aspect ratio locked to display)
+7. Click **"Save"** to apply changes
 
 ### Managing Display
 - **▶️ Play Now**: Immediately display the image on the e-ink screen
@@ -138,26 +148,76 @@ epaper-image-frame/
 - **Templates**: Jinja2 templating engine
 
 ### Database Schema
-- **Images**: Stores image metadata, crop settings, and usage statistics
+- **Images**: Stores image metadata, crop settings, aspect ratio preferences, and usage statistics
 - **Settings**: Stores application configuration and display parameters
 
 ### Image Processing Pipeline
 1. **Upload**: Multi-file upload with validation
 2. **Processing**: Automatic thumbnail generation
 3. **Storage**: Organized file system with unique filenames
-4. **Rendering**: Crop-aware rendering to match display aspect ratio
-5. **Display**: E-ink optimized output
+4. **Rendering**: Dual-mode rendering (crop-to-fill or letterbox with aspect ratio preservation)
+5. **Display**: E-ink optimized output with configurable display modes
 
 ## 🎨 Crop System
 
 The advanced cropping system ensures your images always look perfect on your e-ink display:
 
+- **Dual Display Modes**: Choose between crop-to-fill or letterbox rendering per image
 - **Aspect Ratio Locking**: Crop selections automatically maintain your display's aspect ratio
 - **Visual Editor**: Drag and resize the crop area with real-time preview
 - **Percentage-Based**: Crop coordinates stored as percentages for resolution independence
 - **Smart Defaults**: New images default to full-frame (0%, 0%, 100%, 100%)
+- **Dynamic Controls**: Crop editor automatically disabled when letterbox mode is selected
 
-## 🔄 Slideshow Features
+## 🔄 Database Migrations
+
+The application includes migration scripts to update your database schema when upgrading:
+
+### Initial Setup
+- **`migrate_db.py`**: Creates the initial database and adds crop functionality
+  - Adds `crop_x`, `crop_y`, `crop_width`, `crop_height` columns to images table
+  - Sets default values for full-frame cropping (0, 0, 100, 100)
+
+### Feature Updates
+- **`migrate_aspect_ratio.py`**: Adds aspect ratio preservation feature
+  - Adds `preserve_aspect_ratio` boolean column to images table
+  - Defaults to `FALSE` (crop-to-fill behavior) for existing images
+
+### Running Migrations
+```bash
+# For new installations
+python migrate_db.py
+
+# For upgrades (run only if needed)
+python migrate_aspect_ratio.py
+```
+
+**Note**: Migration scripts are safe to run multiple times - they check for existing columns before making changes.
+
+## 🎨 Display Modes
+
+The application offers two rendering modes for different image display preferences:
+
+### Crop-to-Fill Mode (Default)
+- **Behavior**: Image is cropped to completely fill the display
+- **Pros**: No black borders, full screen utilization
+- **Cons**: Some image content may be cropped out
+- **Best for**: Landscape photos, images shot at similar aspect ratio to display
+
+### Letterbox Mode (Preserve Aspect Ratio)
+- **Behavior**: Image maintains original proportions with black borders if needed
+- **Pros**: Shows complete image content, preserves photographer's intent
+- **Cons**: May have black bars on sides or top/bottom
+- **Best for**: Portrait photos, artwork, images with important edge content
+
+### Configuring Display Mode
+Each image can be individually configured:
+1. Edit the image
+2. Toggle "Preserve original aspect ratio" checkbox
+3. Save changes
+4. Crop controls are automatically disabled in letterbox mode
+
+## 🔧 Slideshow Features
 
 - **Automatic Rotation**: Configure timing for hands-free operation
 - **Smart Selection**: Only enabled images participate in slideshow
