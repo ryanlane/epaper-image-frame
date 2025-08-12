@@ -2,7 +2,12 @@
     <div class="menu-toggle" onclick="toggleMenu()">☰</div>
     <div class="nav-links" id="navLinks">
         <a class="{{ 'active' if request.url.path=='/' else '' }}" href="/">Home</a>
-  <a class="{{ 'active' if request.url.path=='/upload' else '' }}" href="/upload">Upload</a>
-  <a class="{{ 'active' if request.url.path=='/settings' else '' }}" href="/settings">Settings</a>
+        <a class="{{ 'active' if request.url.path=='/upload' else '' }}" href="/upload">Upload</a>
+        <a class="{{ 'active' if request.url.path=='/settings' else '' }}" href="/settings">Settings</a>
+        {% if dev_mode %}
+        <a href="/frame" target="_blank" class="dev-link" title="Open frame view in new window">
+            🖼️ Frame View
+        </a>
+        {% endif %}
     </div>
 </nav>

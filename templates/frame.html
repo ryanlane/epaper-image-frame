@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frame View • E‑Ink Frame</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .frame-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+        
+        .current-image {
+            max-width: 100vw;
+            max-height: 100vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            display: block;
+        }
+        
+        .no-image-placeholder {
+            text-align: center;
+            color: #666;
+            font-size: 2rem;
+            padding: 2rem;
+        }
+        
+        .no-image-placeholder .icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        /* Frame border for visual effect */
+        .frame-border {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            bottom: 10px;
+            border: 3px solid #333;
+            border-radius: 8px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        /* Dev mode indicator */
+        .dev-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 102, 0, 0.8);
+            color: #000;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            z-index: 20;
+        }
+        
+        /* Last update info */
+        .update-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #ccc;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            z-index: 20;
+    
+        }
+        
+        .update-info.show {
+            opacity: 1;
+        }
+        
+        /* Auto-hide cursor after inactivity */
+        body.hide-cursor {
+            cursor: none;
+        }
+        
+        body.hide-cursor * {
+            cursor: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="frame-container">
+        {% if current_image_exists %}
+            <img src="/static/current.jpg?v={{ timestamp }}" alt="Current Image" class="current-image" id="currentImage">
+        {% else %}
+            <div class="no-image-placeholder" id="placeholder">
+                <div class="icon">🖼️</div>
+                <div>No image currently displayed</div>
+                <div style="font-size: 1rem; margin-top: 1rem; opacity: 0.7;">Waiting for slideshow or manual selection...</div>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Frame border for visual effect -->
+    <div class="frame-border"></div>
+    
+    {% if dev_mode %}
+    <!-- Dev mode indicator -->
+    <div class="dev-indicator">DEV MODE</div>
+    {% endif %}
+    
+    <!-- Last update info -->
+    <div class="update-info" id="updateInfo">
+        Last updated: <span id="lastUpdate">{{ timestamp }}</span>
+    </div>
+
+    <script>
+        let lastImageVersion = '{{ timestamp }}';
+        let cursorTimeout;
+        
+        // Auto-refresh the current image every 5 seconds
+        setInterval(async () => {
+            try {
+                // Add timestamp to prevent caching
+                const newVersion = Date.now();
+                const img = document.getElementById('currentImage');
+                const placeholder = document.getElementById('placeholder');
+                
+                // Test if image exists by trying to load it
+                const testImg = new Image();
+                testImg.onload = function() {
+                    // Image exists - show it
+                    if (placeholder) {
+                        placeholder.style.display = 'none';
+                    }
+                    
+                    if (!img) {
+                        // Create new image element if it doesn't exist
+                        const newImg = document.createElement('img');
+                        newImg.src = `/static/current.jpg?v=${newVersion}`;
+                        newImg.alt = 'Current Image';
+                        newImg.className = 'current-image';
+                        newImg.id = 'currentImage';
+                        document.querySelector('.frame-container').appendChild(newImg);
+                    } else {
+                        // Update existing image
+                        img.src = `/static/current.jpg?v=${newVersion}`;
+                    }
+                    
+                    // Show update indicator
+                    showUpdateInfo(newVersion);
+                };
+                
+                testImg.onerror = function() {
+                    // Image doesn't exist - show placeholder
+                    if (img) {
+                        img.style.display = 'none';
+                    }
+                    
+                    if (!placeholder) {
+                        // Create placeholder if it doesn't exist
+                        const newPlaceholder = document.createElement('div');
+                        newPlaceholder.className = 'no-image-placeholder';
+                        newPlaceholder.id = 'placeholder';
+                        newPlaceholder.innerHTML = `
+                            <div class="icon">🖼️</div>
+                            <div>No image currently displayed</div>
+                            <div style="font-size: 1rem; margin-top: 1rem; opacity: 0.7;">Waiting for slideshow or manual selection...</div>
+                        `;
+                        document.querySelector('.frame-container').appendChild(newPlaceholder);
+                    } else {
+                        placeholder.style.display = 'block';
+                    }
+                };
+                
+                testImg.src = `/static/current.jpg?v=${newVersion}`;
+                
+            } catch (error) {
+                console.error('Error checking for image updates:', error);
+            }
+        }, 5000);
+        
+        // Show update info briefly
+        function showUpdateInfo(timestamp) {
+            const updateInfo = document.getElementById('updateInfo');
+            const lastUpdate = document.getElementById('lastUpdate');
+            
+            lastUpdate.textContent = new Date(timestamp).toLocaleTimeString();
+            updateInfo.classList.add('show');
+            
+            setTimeout(() => {
+                updateInfo.classList.remove('show');
+            }, 2000);
+        }
+        
+        // Auto-hide cursor after 3 seconds of inactivity
+        function resetCursorTimeout() {
+            document.body.classList.remove('hide-cursor');
+            clearTimeout(cursorTimeout);
+            cursorTimeout = setTimeout(() => {
+                document.body.classList.add('hide-cursor');
+            }, 3000);
+        }
+        
+        // Track mouse movement to show/hide cursor
+        document.addEventListener('mousemove', resetCursorTimeout);
+        document.addEventListener('mousedown', resetCursorTimeout);
+        document.addEventListener('keypress', resetCursorTimeout);
+        
+        // Initial cursor timeout
+        resetCursorTimeout();
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                window.close();
+            } else if (e.key === 'F11') {
+                // Toggle fullscreen
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen();
+                } else {
+                    document.exitFullscreen();
+                }
+            }
+        });
+        
+        console.log('Frame view loaded - auto-refreshing every 5 seconds');
+    </script>
+</body>
+</html>

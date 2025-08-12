@@ -342,6 +342,26 @@ def index(request: Request, db: Session = Depends(get_db)):
         "dev_mode": is_dev_mode()
     })
 
+@app.get("/frame", name="frame")
+def frame_view(request: Request):
+    """Frame view - shows just the current image, auto-refreshing for slideshow testing"""
+    print(f"[FRAME] Frame view requested at {datetime.now()}")
+    
+    # Check if current.jpg file actually exists
+    current_image_exists = os.path.exists("static/current.jpg")
+    
+    # Get timestamp for cache busting
+    timestamp = int(datetime.now().timestamp() * 1000)
+    
+    print(f"[FRAME] current_image_exists: {current_image_exists}, timestamp: {timestamp}")
+    
+    return templates.TemplateResponse("frame.html", {
+        "request": request,
+        "current_image_exists": current_image_exists,
+        "timestamp": timestamp,
+        "dev_mode": is_dev_mode()
+    })
+
 @app.get("/upload", name="upload")
 def upload_form(request: Request):
     return templates.TemplateResponse("upload.html", {
