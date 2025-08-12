@@ -9,13 +9,20 @@
       <!-- Aspect ratio preservation option -->
       <div class="aspect-ratio-option">
         <div class="aspect-ratio-option-control">
-        
-          <input type="checkbox" id="preserve-aspect-{{ image.id }}" 
-                 {{ 'checked' if image.preserve_aspect_ratio else '' }}
-                 onchange="toggleAspectRatioMode('{{ image.id }}')">
-          <label for="preserve-aspect-{{ image.id }}">Preserve original aspect ratio</label>
+          <div class="slide-switch-container">
+            <input type="checkbox" id="preserve-aspect-{{ image.id }}" 
+                   class="slide-switch-input"
+                   {{ 'checked' if image.preserve_aspect_ratio else '' }}
+                   onchange="toggleAspectRatioMode('{{ image.id }}')">
+            <label for="preserve-aspect-{{ image.id }}" class="slide-switch-label">
+              <span class="slide-switch-track">
+                <span class="slide-switch-thumb"></span>
+              </span>
+              <span class="slide-switch-text">Preserve original aspect ratio</span>
+            </label>
+          </div>
         </div>
-        <small class="aspect-help">When checked, image keeps original proportions with black borders. When unchecked, image fills display by cropping.</small>
+        <small class="aspect-help">When enabled, image keeps original proportions with black borders. When disabled, image fills display by cropping.</small>
       </div>
       
       <!-- Crop controls -->

@@ -222,6 +222,123 @@ main {
     margin-right: 0.5rem;
 }
 
+/* Slide Switch Styles */
+.slide-switch-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.slide-switch-input {
+    display: none; /* Hide the actual checkbox */
+}
+
+.slide-switch-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.slide-switch-track {
+    position: relative;
+    width: 48px;
+    height: 24px;
+    background: #444;
+    border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid #666;
+    display: inline-block;
+}
+
+.slide-switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border-radius: 50%;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Checked state */
+.slide-switch-input:checked + .slide-switch-label .slide-switch-track {
+    background: #ff6600;
+    border-color: #ff8833;
+    box-shadow: 0 0 0 2px rgba(255, 102, 0, 0.2);
+}
+
+.slide-switch-input:checked + .slide-switch-label .slide-switch-thumb {
+    transform: translateX(24px);
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+/* Hover and focus states */
+.slide-switch-label:hover .slide-switch-track {
+    border-color: #888;
+    transform: scale(1.02);
+}
+
+.slide-switch-input:checked + .slide-switch-label:hover .slide-switch-track {
+    border-color: #ff8833;
+    background: #ff7722;
+}
+
+.slide-switch-input:focus + .slide-switch-label .slide-switch-track {
+    outline: 2px solid #ff6600;
+    outline-offset: 2px;
+}
+
+/* Active state for better touch feedback */
+.slide-switch-label:active .slide-switch-track {
+    transform: scale(0.98);
+}
+
+.slide-switch-label:active .slide-switch-thumb {
+    transform: scale(0.9);
+}
+
+.slide-switch-input:checked + .slide-switch-label:active .slide-switch-thumb {
+    transform: translateX(24px) scale(0.9);
+}
+
+/* Touch feedback */
+@media (pointer: coarse) {
+    .slide-switch-track {
+        width: 56px;
+        height: 28px;
+        border-radius: 14px;
+    }
+    
+    .slide-switch-thumb {
+        width: 20px;
+        height: 20px;
+        top: 2px;
+        left: 2px;
+    }
+    
+    .slide-switch-input:checked + .slide-switch-label .slide-switch-thumb {
+        transform: translateX(28px);
+    }
+    
+    .slide-switch-label:active .slide-switch-thumb {
+        transform: scale(1.1);
+    }
+    
+    .slide-switch-input:checked + .slide-switch-label:active .slide-switch-thumb {
+        transform: translateX(28px) scale(1.1);
+    }
+}
+
+.slide-switch-text {
+    font-size: 0.9rem;
+    color: #ddd;
+}
+
 .aspect-ratio-option .aspect-help {
     font-size: 0.75rem;
     color: #aaa;
