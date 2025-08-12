@@ -677,7 +677,16 @@ if __name__ == "__main__":
     except Exception:
         local_ip = "127.0.0.1"
 
-    print(f"INFO:     Local machine IP address: http://{local_ip}:8080")
+    print(f"\033[1;92mINFO:     Local machine IP address: \033[1mhttp://{local_ip}:8080\033[0m")
 
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    # Use reload only in development mode
+    use_reload = is_dev_mode()
+    if use_reload:
+        print("INFO:     Development mode - auto-reload enabled")
+        # For reload to work, we need to pass the app as an import string
+        uvicorn.run("app:app", host="0.0.0.0", port=8080, reload=True)
+    else:
+        print("INFO:     Production mode - auto-reload disabled")
+        # In production, we can pass the app object directly
+        uvicorn.run(app, host="0.0.0.0", port=8080, reload=False)
 
