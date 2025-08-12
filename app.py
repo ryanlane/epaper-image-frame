@@ -1,7 +1,7 @@
-import os, random, threading, time, queue
+import os, random, threading, time, queue, uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Dict, Any
 from fastapi import FastAPI, Request, UploadFile, File, Form, Depends, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -64,6 +64,7 @@ async def lifespan(app: FastAPI):
     
     # Start background threads
     start_display_worker()
+    start_upload_worker()
     start_slideshow()
     
     yield
@@ -71,6 +72,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     print("[SHUTDOWN] Stopping background threads...")
     stop_display_worker()
+    stop_upload_worker()
     SLIDESHOW_THREAD["stop"] = True
     if SLIDESHOW_THREAD["t"] and SLIDESHOW_THREAD["t"].is_alive():
         SLIDESHOW_THREAD["t"].join(timeout=5)
@@ -88,6 +90,11 @@ def get_db():
 DISPLAY_QUEUE = queue.Queue()
 DISPLAY_THREAD = {"t": None, "stop": False}
 SLIDESHOW_THREAD = {"t": None, "stop": False}
+
+# Global upload queue and status tracking
+UPLOAD_QUEUE = queue.Queue()
+UPLOAD_STATUS: Dict[str, Any] = {}  # task_id -> status info
+UPLOAD_THREAD = {"t": None, "stop": False}
 
 def display_worker():
     """Worker thread that processes display queue in background"""
@@ -149,6 +156,107 @@ def stop_display_worker():
         DISPLAY_THREAD["t"].join(timeout=5)
         print("[DISPLAY] Worker thread stopped")
 
+def upload_worker():
+    """Worker thread that processes upload queue in background"""
+    while not UPLOAD_THREAD["stop"]:
+        try:
+            upload_task = UPLOAD_QUEUE.get(timeout=1)
+            if upload_task is None:  # Shutdown signal
+                break
+                
+            task_id, files_data, title, description = upload_task
+            
+            # Update status
+            UPLOAD_STATUS[task_id] = {
+                "status": "processing", 
+                "progress": 0, 
+                "total": len(files_data),
+                "uploaded": 0,
+                "errors": []
+            }
+            
+            # Get database session
+            db = SessionLocal()
+            try:
+                s = db.query(Settings).first()
+                uploaded_count = 0
+                
+                for i, (filename, file_content) in enumerate(files_data):
+                    try:
+                        # Update progress
+                        UPLOAD_STATUS[task_id]["progress"] = i
+                        
+                        # Use filename as title if no default title provided
+                        file_title = title if title.strip() else os.path.splitext(filename)[0]
+                        
+                        # Create a file-like object from bytes
+                        from io import BytesIO
+                        file_obj = type('UploadFile', (), {
+                            'filename': filename,
+                            'file': BytesIO(file_content)
+                        })()
+                        
+                        fname, w, h, exif_json = save_upload(file_obj, s.image_root, s.thumb_root)
+                        
+                        # Calculate smart default crop
+                        crop_x, crop_y, crop_width, crop_height = calculate_smart_crop(w, h, s.resolution)
+                        
+                        # Add to database
+                        max_order = db.query(Image).count()
+                        img = Image(filename=fname, original_name=filename, title=file_title,
+                                    description=description, exif_json=exif_json,
+                                    width=w, height=h, sort_order=max_order+1,
+                                    crop_x=crop_x, crop_y=crop_y, 
+                                    crop_width=crop_width, crop_height=crop_height)
+                        db.add(img)
+                        uploaded_count += 1
+                        UPLOAD_STATUS[task_id]["uploaded"] = uploaded_count
+                        
+                        print(f"Successfully processed: {filename} (crop: {crop_x:.1f}%, {crop_y:.1f}%, {crop_width:.1f}%x{crop_height:.1f}%)")
+                        
+                    except Exception as e:
+                        error_msg = f"Failed to upload {filename}: {str(e)}"
+                        print(error_msg)
+                        UPLOAD_STATUS[task_id]["errors"].append(error_msg)
+                        continue
+                
+                db.commit()
+                
+                # Mark as completed
+                UPLOAD_STATUS[task_id]["status"] = "completed"
+                UPLOAD_STATUS[task_id]["progress"] = len(files_data)
+                print(f"Upload task {task_id} completed: {uploaded_count} of {len(files_data)} images")
+                
+            except Exception as e:
+                db.rollback()
+                UPLOAD_STATUS[task_id]["status"] = "error"
+                UPLOAD_STATUS[task_id]["errors"].append(f"Database error: {str(e)}")
+                print(f"Upload task {task_id} failed: {e}")
+            finally:
+                db.close()
+                UPLOAD_QUEUE.task_done()
+                
+        except queue.Empty:
+            continue  # Check stop flag and try again
+        except Exception as e:
+            print(f"Upload worker error: {e}")
+
+def start_upload_worker():
+    """Start the background upload worker thread"""
+    if UPLOAD_THREAD["t"] is None or not UPLOAD_THREAD["t"].is_alive():
+        UPLOAD_THREAD["stop"] = False
+        UPLOAD_THREAD["t"] = threading.Thread(target=upload_worker, daemon=True)
+        UPLOAD_THREAD["t"].start()
+        print("[UPLOAD] Worker thread started")
+
+def stop_upload_worker():
+    """Stop the background upload worker thread"""
+    UPLOAD_THREAD["stop"] = True
+    UPLOAD_QUEUE.put(None)  # Signal shutdown
+    if UPLOAD_THREAD["t"] and UPLOAD_THREAD["t"].is_alive():
+        UPLOAD_THREAD["t"].join(timeout=5)
+        print("[UPLOAD] Worker thread stopped")
+
 @app.get("/", name="home")
 def index(request: Request, db: Session = Depends(get_db)):
     imgs = db.query(Image).order_by(Image.sort_order.asc(), Image.created_at.asc()).all()
@@ -165,7 +273,7 @@ def upload_form(request: Request):
     return templates.TemplateResponse("upload.html", {"request": request})
 
 @app.post("/upload")
-async def upload(request: Request, db: Session = Depends(get_db)):
+async def upload(request: Request):
     print("Upload endpoint called")
     
     form = await request.form()
@@ -180,43 +288,48 @@ async def upload(request: Request, db: Session = Depends(get_db)):
     files = form.getlist("files")
     print(f"Received {len(files)} files")
     
-    s = db.query(Settings).first()
-    uploaded_count = 0
+    if not files or not any(hasattr(f, 'filename') and f.filename for f in files):
+        return JSONResponse({"error": "No valid files provided"}, status_code=400)
     
-    for i, file in enumerate(files):
-        if hasattr(file, 'filename') and file.filename:  # Make sure it's actually a file
-            print(f"Processing file {i+1}: {file.filename}")
-            try:
-                # Use filename as title if no default title provided
-                file_title = title if title.strip() else os.path.splitext(file.filename)[0]
-                
-                fname, w, h, exif_json = save_upload(file, s.image_root, s.thumb_root)
-                
-                # Calculate smart default crop based on image and display aspect ratios
-                crop_x, crop_y, crop_width, crop_height = calculate_smart_crop(w, h, s.resolution)
-                
-                # sort_order = max + 1
-                max_order = db.query(Image).count()
-                img = Image(filename=fname, original_name=file.filename, title=file_title,
-                            description=description, exif_json=exif_json,
-                            width=w, height=h, sort_order=max_order+1,
-                            crop_x=crop_x, crop_y=crop_y, 
-                            crop_width=crop_width, crop_height=crop_height)
-                db.add(img)
-                uploaded_count += 1
-                print(f"Successfully processed: {file.filename} (crop: {crop_x:.1f}%, {crop_y:.1f}%, {crop_width:.1f}%x{crop_height:.1f}%)")
-            except Exception as e:
-                print(f"Failed to upload {file.filename}: {e}")
-                import traceback
-                traceback.print_exc()
-                # Continue with other files even if one fails
-                continue
-        else:
-            print(f"Skipping non-file item: {file}")
+    # Generate unique task ID
+    task_id = str(uuid.uuid4())
     
-    db.commit()
-    print(f"Successfully uploaded {uploaded_count} of {len(files)} images")
-    return RedirectResponse("/", status_code=303)
+    # Read file contents into memory (since we can't pass file objects between threads)
+    files_data = []
+    for file in files:
+        if hasattr(file, 'filename') and file.filename:
+            content = await file.read()
+            files_data.append((file.filename, content))
+    
+    # Queue the upload task
+    UPLOAD_QUEUE.put((task_id, files_data, title, description))
+    
+    # Initialize status tracking
+    UPLOAD_STATUS[task_id] = {
+        "status": "queued", 
+        "progress": 0, 
+        "total": len(files_data),
+        "uploaded": 0,
+        "errors": []
+    }
+    
+    print(f"Upload task {task_id} queued with {len(files_data)} files")
+    return JSONResponse({"task_id": task_id, "message": f"Upload started for {len(files_data)} files"})
+
+@app.get("/upload/status/{task_id}")
+async def upload_status(task_id: str):
+    """Get the status of an upload task"""
+    if task_id not in UPLOAD_STATUS:
+        raise HTTPException(status_code=404, detail="Upload task not found")
+    
+    status = UPLOAD_STATUS[task_id].copy()
+    
+    # Clean up completed tasks older than 5 minutes
+    if status["status"] in ["completed", "error"]:
+        # You could add cleanup logic here if needed
+        pass
+    
+    return JSONResponse(status)
 
 # Add a simple test endpoint to see if we can receive any POST data
 @app.post("/upload-test")

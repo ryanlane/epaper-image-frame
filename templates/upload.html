@@ -3,7 +3,7 @@
 
 {% block content %}
 <h1>Upload Images</h1>
-<form action="/upload" method="post" enctype="multipart/form-data">
+<form id="uploadForm" enctype="multipart/form-data">
   <div>
     <label>
       <span>Select Images</span>
@@ -12,40 +12,159 @@
     </label>
   </div>
   <button type="submit" id="uploadBtn">Upload Images</button>
+  
   <div id="uploadProgress" style="display: none;">
-    <div>Uploading images...</div>
+    <div id="progressText">Uploading images...</div>
     <div id="progressBar" style="width: 100%; background: #333; border-radius: 4px; margin-top: 0.5rem;">
-      <div style="width: 0%; height: 20px; background: #0066cc; border-radius: 4px; transition: width 0.3s;"></div>
+      <div id="progressFill" style="width: 0%; height: 20px; background: #0066cc; border-radius: 4px; transition: width 0.3s;"></div>
     </div>
+    <div id="progressDetails" style="margin-top: 0.5rem; font-size: 0.9rem; color: #ccc;"></div>
+  </div>
+  
+  <div id="uploadComplete" style="display: none;">
+    <div style="color: #28a745; font-weight: bold; margin-top: 1rem;">Upload completed!</div>
+    <button onclick="window.location.href='/'" style="margin-top: 0.5rem;">Go to Gallery</button>
+  </div>
+  
+  <div id="uploadErrors" style="display: none; margin-top: 1rem;">
+    <div style="color: #dc3545; font-weight: bold;">Some uploads failed:</div>
+    <ul id="errorList" style="color: #dc3545; margin-top: 0.5rem;"></ul>
   </div>
 </form>
 
 <script>
-document.querySelector('form').addEventListener('submit', function(e) {
+let currentTaskId = null;
+let statusInterval = null;
+
+document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  
   const fileInput = document.querySelector('input[type="file"]');
   const files = fileInput.files;
   
   if (files.length === 0) {
     alert('Please select at least one image to upload.');
-    e.preventDefault();
     return;
   }
   
   if (files.length > 20) {
     if (!confirm(`You've selected ${files.length} images. This might take a while. Continue?`)) {
-      e.preventDefault();
       return;
     }
   }
   
-  // Show progress indicator but don't prevent submission
+  // Reset UI
   document.getElementById('uploadProgress').style.display = 'block';
+  document.getElementById('uploadComplete').style.display = 'none';
+  document.getElementById('uploadErrors').style.display = 'none';
+  
   const submitBtn = document.getElementById('uploadBtn');
   submitBtn.disabled = true;
-  submitBtn.textContent = 'Uploading...';
+  submitBtn.textContent = 'Starting upload...';
   
-  // Let the form submit normally
+  try {
+    // Create FormData and submit
+    const formData = new FormData();
+    for (let file of files) {
+      formData.append('files', file);
+    }
+    
+    const response = await fetch('/upload', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.error || 'Upload failed');
+    }
+    
+    currentTaskId = result.task_id;
+    document.getElementById('progressText').textContent = `Upload queued (${files.length} files)`;
+    
+    // Start polling for status
+    statusInterval = setInterval(checkUploadStatus, 500);
+    
+  } catch (error) {
+    console.error('Upload error:', error);
+    document.getElementById('progressText').textContent = 'Upload failed: ' + error.message;
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Upload Images';
+  }
 });
+
+async function checkUploadStatus() {
+  if (!currentTaskId) return;
+  
+  try {
+    const response = await fetch(`/upload/status/${currentTaskId}`);
+    const status = await response.json();
+    
+    if (!response.ok) {
+      throw new Error('Failed to get upload status');
+    }
+    
+    // Update progress
+    const progress = status.total > 0 ? (status.progress / status.total) * 100 : 0;
+    document.getElementById('progressFill').style.width = progress + '%';
+    
+    // Update text
+    if (status.status === 'queued') {
+      document.getElementById('progressText').textContent = 'Upload queued...';
+    } else if (status.status === 'processing') {
+      document.getElementById('progressText').textContent = `Processing images...`;
+      document.getElementById('progressDetails').textContent = 
+        `${status.uploaded} of ${status.total} images processed`;
+    } else if (status.status === 'completed') {
+      // Upload finished
+      clearInterval(statusInterval);
+      document.getElementById('progressText').textContent = 'Upload completed!';
+      document.getElementById('progressDetails').textContent = 
+        `Successfully uploaded ${status.uploaded} of ${status.total} images`;
+      document.getElementById('uploadComplete').style.display = 'block';
+      
+      // Show errors if any
+      if (status.errors && status.errors.length > 0) {
+        showErrors(status.errors);
+      }
+      
+      // Reset button
+      const submitBtn = document.getElementById('uploadBtn');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Upload Images';
+      
+    } else if (status.status === 'error') {
+      // Upload failed
+      clearInterval(statusInterval);
+      document.getElementById('progressText').textContent = 'Upload failed';
+      showErrors(status.errors || ['Unknown error occurred']);
+      
+      const submitBtn = document.getElementById('uploadBtn');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Upload Images';
+    }
+    
+  } catch (error) {
+    console.error('Status check error:', error);
+    clearInterval(statusInterval);
+    document.getElementById('progressText').textContent = 'Error checking upload status';
+  }
+}
+
+function showErrors(errors) {
+  const errorDiv = document.getElementById('uploadErrors');
+  const errorList = document.getElementById('errorList');
+  errorList.innerHTML = '';
+  
+  errors.forEach(error => {
+    const li = document.createElement('li');
+    li.textContent = error;
+    errorList.appendChild(li);
+  });
+  
+  errorDiv.style.display = 'block';
+}
 
 // Show file count when files are selected
 document.querySelector('input[type="file"]').addEventListener('change', function(e) {
@@ -106,6 +225,10 @@ document.querySelector('input[type="file"]').addEventListener('change', function
   }
   button:hover {
     background: #0052a3;
+  }
+  button:disabled {
+    background: #666;
+    cursor: not-allowed;
   }
 </style>
 {% endblock %}
