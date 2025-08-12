@@ -386,6 +386,14 @@ main {
 
 /* Mobile styles */
 @media (max-width: 768px) {
+    body {
+        padding: 0 !important;
+    }
+
+    main {
+        padding: 12px;
+    }
+
     .menu-toggle {
         display: block;
     }
@@ -406,5 +414,22 @@ main {
 
     .card {
         max-width: 100%;
+    }
+
+    .empty-state {
+        padding: 1rem;
+        min-height: 300px;
+    }
+
+    .empty-content {
+        padding: 2rem 1rem;
+    }
+
+    .empty-content h2 {
+        font-size: 1.5rem;
+    }
+
+    .empty-content p {
+        font-size: 1rem;
     }
 }
