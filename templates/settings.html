@@ -4,6 +4,33 @@
 {% block content %}
 <h1>Settings</h1>
 
+{% if hardware %}
+<div class="settings-section">
+  <h2>Detected Inky Display</h2>
+  <table style="margin-bottom:1em;">
+    <tr><td><b>Model</b></td><td>{{ hardware.model }}</td></tr>
+    <tr><td><b>Color</b></td><td>{{ hardware.colour }}</td></tr>
+    <tr><td><b>Resolution</b></td><td>{{ hardware.resolution[0] }} × {{ hardware.resolution[1] }}</td></tr>
+    <tr><td><b>Supported Colors</b></td><td>{% for c in hardware.supported_colours %}{{ c }}{% if not loop.last %}, {% endif %}{% endfor %}</td></tr>
+    <tr><td><b>Border Color</b></td><td>{{ hardware.border }}</td></tr>
+    <tr><td><b>EEPROM Info</b></td><td>{{ hardware.eeprom }}</td></tr>
+    <tr><td><b>Library Version</b></td><td>{{ hardware.version }}</td></tr>
+    <tr><td><b>Detection Type</b></td><td>{{ hardware.detect_type }}</td></tr>
+  </table>
+  <h3>Supported Colors</h3>
+  <table style="border-collapse:collapse;">
+    <tr>
+      {% for color in hardware.colors %}
+      <td style="padding:8px;text-align:center;">
+        <div style="width:48px;height:48px;background:{{ color.css }};border:1px solid #888;border-radius:6px;margin-bottom:4px;"></div>
+        <div style="font-size:0.9em;">{{ color.name }}</div>
+      </td>
+      {% endfor %}
+    </tr>
+  </table>
+</div>
+{% endif %}
+
 <form method="post" action="/settings">
   <div class="settings">
     <div class="settings-section">
@@ -56,9 +83,32 @@
       <div class="settings-item">
         <label style="flex:1">
           <span>Resolution (w,h)</span>
-          <input type="text" name="resolution" value="{{settings.resolution}}" placeholder="800,480" required>
+          <input type="text" name="resolution" id="resolutionInput" value="{{settings.resolution}}" placeholder="800,480" required>
+          {% if hardware %}
+          <button type="button" onclick="setInkyResolution()" style="margin-left:8px;">Set to Inky</button>
+          {% endif %}
+        </label>
+        {% if hardware %}
+        <script>
+        function setInkyResolution() {
+          var res = '{{ hardware.resolution[0] }},{{ hardware.resolution[1] }}';
+          document.getElementById('resolutionInput').value = res;
+        }
+        </script>
+        {% endif %}
+      </div>
+      {% if hardware %}
+      <div class="settings-item">
+        <label style="flex:1">
+          <span>Border Color</span>
+          <select name="border_color" id="borderColorSelect">
+            {% for c in hardware.supported_colours %}
+            <option value="{{ c }}" {% if hardware.border == c %}selected{% endif %}>{{ c.title() }}</option>
+            {% endfor %}
+          </select>
         </label>
       </div>
+      {% endif %}
     </div>
   </div>
   <button type="submit" class="save-settings">Save Settings</button>

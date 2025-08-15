@@ -67,12 +67,21 @@ def calculate_smart_crop(image_width, image_height, display_resolution):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
     # Startup
     init_db()
     with SessionLocal() as db:
         s = db.query(Settings).first()
         if not s:
             s = Settings()
+            # Try to set resolution to Inky display resolution if available
+            try:
+                from utils.eframe_inky import inky
+                if inky and hasattr(inky, "resolution"):
+                    res = inky.resolution
+                    s.resolution = f"{res[0]},{res[1]}"
+            except Exception:
+                pass
             db.add(s); db.commit()
         ensure_dirs(s.image_root, s.thumb_root, os.path.dirname("static/current.jpg"))
     
@@ -573,10 +582,58 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     s = db.query(Settings).first()
     if not s:
         raise HTTPException(500, "Settings row missing")
+
+    # Try to detect Inky hardware info
+    hardware = None
+    try:
+        from utils.eframe_inky import inky
+        import sys
+        if inky:
+            color_map = {
+                "red": "#e11d2a",
+                "black": "#222",
+                "white": "#fff",
+                "yellow": "#ffe600",
+                "green": "#0f0",
+                "blue": "#00f"
+            }
+            # Supported colors
+            supported_colours = getattr(inky, "supported_colours", [getattr(inky, "colour", "unknown")])
+            # Model name
+            model = getattr(inky, "__class__", type(inky)).__name__
+            # Border color
+            border = getattr(inky, "border", None)
+            # EEPROM info
+            eeprom = getattr(inky, "eeprom", None)
+            # Library version
+            try:
+                import inky
+                version = getattr(inky, "__version__", "unknown")
+            except Exception:
+                version = "unknown"
+            # Detection type
+            detect_type = "auto" if "auto" in str(type(inky)).lower() else "manual"
+            hardware = {
+                "colour": getattr(inky, "colour", "unknown"),
+                "resolution": getattr(inky, "resolution", [800, 480]),
+                "colors": [
+                    {"name": c.title(), "css": color_map.get(c, "#888")} for c in supported_colours
+                ],
+                "supported_colours": supported_colours,
+                "model": model,
+                "border": border,
+                "eeprom": eeprom,
+                "version": version,
+                "detect_type": detect_type
+            }
+    except Exception as e:
+        hardware = None
+
     return templates.TemplateResponse("settings.html", {
-        "request": request, 
+        "request": request,
         "settings": s,
-        "dev_mode": is_dev_mode()
+        "dev_mode": is_dev_mode(),
+        "hardware": hardware
     })
 
 # app.py – REPLACE the existing /settings handler with this:
@@ -588,6 +645,7 @@ def update_settings(
     image_root: str = Form(...),
     thumb_root: str = Form(...),
     resolution: str = Form(...),  # e.g. "800,480"
+    border_color: str = Form(None),
     db: Session = Depends(get_db)
 ):
     s = db.query(Settings).first()
@@ -597,6 +655,15 @@ def update_settings(
     s.image_root = image_root.strip()
     s.thumb_root = thumb_root.strip()
     s.resolution = resolution.strip()
+
+    # Set border color if hardware is detected and value provided
+    if border_color:
+        try:
+            from utils.eframe_inky import inky
+            if inky and hasattr(inky, "set_border"):
+                inky.set_border(border_color)
+        except Exception as e:
+            print(f"[SETTINGS] Failed to set Inky border color: {e}")
 
     # Make sure folders exist after edits
     ensure_dirs(s.image_root, s.thumb_root, os.path.dirname("static/current.jpg"))
